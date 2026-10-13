@@ -2,6 +2,7 @@ name: Signed Android release
 on:
   push:
     branches: [main]
+    paths: ['app/**', 'android-platform/**', 'control-core/**', 'fixture/**', '*.kts', 'gradle/**', 'gradle.properties', '.github/workflows/**', 'scripts/prepare_ngrok_native.sh', 'scripts/check_apk.py']
   workflow_dispatch:
 permissions:
   contents: read

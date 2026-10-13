@@ -1,6 +1,6 @@
 plugins { id("com.android.application") }
-val ngrokNativeClasses by configurations.creating
-val androidNgrokJar by tasks.registering(Jar::class) {
+val ngrokNativeClasses = configurations.create("ngrokNativeClasses") { isTransitive=false }
+val androidNgrokJar = tasks.register<Jar>("androidNgrokJar") {
     archiveBaseName.set("ngrok-native-android")
     destinationDirectory.set(layout.buildDirectory.dir("ngrok-classes"))
     from({ ngrokNativeClasses.map { zipTree(it) } })

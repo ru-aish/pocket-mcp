@@ -137,6 +137,7 @@ public final class AndroidSystemActions {
         if(timezone==null || !List.of(TimeZone.getAvailableIDs()).contains(timezone)) {
             throw new ControlException(INVALID_ARGUMENT,"Recognized event time zone required");
         }
+        if(calendars().stream().noneMatch(c->c.id()==calendarId && c.writable())) throw new ControlException(INVALID_ARGUMENT,"Choose an existing writable calendar");
         ContentValues values=new ContentValues();
         values.put(CalendarContract.Events.CALENDAR_ID,calendarId);values.put(CalendarContract.Events.TITLE,title);
         values.put(CalendarContract.Events.DTSTART,startMillis);values.put(CalendarContract.Events.DTEND,endMillis);

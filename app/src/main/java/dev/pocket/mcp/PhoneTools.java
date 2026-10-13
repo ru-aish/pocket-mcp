@@ -126,6 +126,7 @@ final class PhoneTools {
             }
             case "phone_call": {
                 if(a.has("name")==a.has("number")) throw new ControlException(INVALID_ARGUMENT,"Provide exactly one of name or number");
+                system.requirePermission(Manifest.permission.CALL_PHONE);
                 PhoneAccountHandle handle=account(string(a,"phone_account_id"));boolean speaker=a.optBoolean("speaker",false);
                 return outcome(a.has("name")?system.callContact(a.getString("name"),handle,speaker):system.callNumber(a.getString("number"),handle,speaker));
             }
@@ -136,6 +137,7 @@ final class PhoneTools {
             case "phone_alarm":return outcome(system.setAlarm(a.getInt("hour"),a.getInt("minute"),a.optString("label","")));
             case "phone_timer":return outcome(system.startTimer(a.getInt("seconds"),a.optString("label","")));
             case "phone_sms": {
+                system.requirePermission(Manifest.permission.SEND_SMS);
                 AndroidMessagingActions sms=new AndroidMessagingActions(context);int sim=a.optInt("subscription_id",-1);int count=sms.parts(a.getString("text"),sim);
                 ArrayList<PendingIntent> sent=new ArrayList<>(),delivered=new ArrayList<>();for(int i=0;i<count;i++) {sent.add(receipt(a.getString("operation_id"),"sent",i));delivered.add(receipt(a.getString("operation_id"),"delivered",i));}
                 JSONObject result=outcome(sms.sendSms(a.getString("number"),a.getString("text"),sim,sent,delivered));result.getJSONObject("structuredContent").put("parts",count);return result;

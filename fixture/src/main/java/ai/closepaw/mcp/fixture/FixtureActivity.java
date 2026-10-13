@@ -15,6 +15,7 @@ import android.widget.TextView;
  * all input and observation are sent through the device's MCP server.
  */
 public class FixtureActivity extends Activity {
+    private int clicks;
     private TextView label(String text, int id) {
         TextView result = new TextView(this);
         result.setText(text);
@@ -46,11 +47,13 @@ public class FixtureActivity extends Activity {
         outer.addView(inputFocused);
 
         TextView status = label("STATUS_READY", R.id.mcp_test_status);
+        inputFocused.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);
+        inputFocused.setOnEditorActionListener((v,action,event)-> {status.setText("STATUS_ENTERED:"+inputFocused.getText());return true;});
 
         Button click = new Button(this);
         click.setId(R.id.mcp_test_click);
         click.setText("MCP_CLICK");
-        click.setOnClickListener(v -> status.setText("STATUS_CLICKED:" + input.getText().toString()));
+        click.setOnClickListener(v -> status.setText("STATUS_CLICKED:" + input.getText().toString()+" COUNT:"+(++clicks)));
         outer.addView(click);
 
         Button longClick = new Button(this);
@@ -73,5 +76,29 @@ public class FixtureActivity extends Activity {
         scroll.addView(scrollContent);
         outer.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
         setContentView(outer);
+        seedProviders();
+    }
+    private void seedProviders() {
+        try {
+            if(checkSelfPermission(android.Manifest.permission.WRITE_CONTACTS)==android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                String name="Pocket MCP Test Ada";
+                try(android.database.Cursor c=getContentResolver().query(android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI,new String[]{"_id"},"display_name=?",new String[]{name},null)) {
+                    if(c==null || !c.moveToFirst()) {
+                        java.util.ArrayList<android.content.ContentProviderOperation> ops=new java.util.ArrayList<>();
+                        ops.add(android.content.ContentProviderOperation.newInsert(android.provider.ContactsContract.RawContacts.CONTENT_URI).withValue("account_type",null).withValue("account_name",null).build());
+                        ops.add(android.content.ContentProviderOperation.newInsert(android.provider.ContactsContract.Data.CONTENT_URI).withValueBackReference("raw_contact_id",0).withValue("mimetype",android.provider.ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE).withValue("data1",name).build());
+                        ops.add(android.content.ContentProviderOperation.newInsert(android.provider.ContactsContract.Data.CONTENT_URI).withValueBackReference("raw_contact_id",0).withValue("mimetype",android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE).withValue("data1","+15550100420").withValue("data2",2).build());
+                        getContentResolver().applyBatch(android.provider.ContactsContract.AUTHORITY,ops);
+                    }
+                }
+            }
+            if(checkSelfPermission(android.Manifest.permission.WRITE_CALENDAR)==android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                android.content.ContentValues v=new android.content.ContentValues();
+                v.put("account_name","pocket-test");v.put("account_type",android.provider.CalendarContract.ACCOUNT_TYPE_LOCAL);v.put("name","Pocket Test Calendar");v.put("calendar_displayName","Pocket Test Calendar");v.put("calendar_color",0xff164c69);v.put("calendar_access_level",700);v.put("ownerAccount","pocket-test");v.put("calendar_timezone","UTC");v.put("visible",1);v.put("sync_events",1);
+                try(android.database.Cursor c=getContentResolver().query(android.provider.CalendarContract.Calendars.CONTENT_URI,new String[]{"_id"},"name=?",new String[]{"Pocket Test Calendar"},null)) {
+                    if(c==null || !c.moveToFirst()) getContentResolver().insert(android.provider.CalendarContract.Calendars.CONTENT_URI.buildUpon().appendQueryParameter("caller_is_syncadapter","true").appendQueryParameter("account_name","pocket-test").appendQueryParameter("account_type",android.provider.CalendarContract.ACCOUNT_TYPE_LOCAL).build(),v);
+                }
+            }
+        } catch(Exception e) {android.util.Log.e("PocketFixture","Provider seed failed: "+e.getClass().getSimpleName());}
     }
 }

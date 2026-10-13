@@ -304,7 +304,7 @@ public final class AndroidScreenBackend implements ControlBackend {
         String expected=a.replace()?a.text():existing.substring(0,left)+a.text()+existing.substring(right);
         Bundle args=new Bundle();args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,expected);
         if(!node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT,args)) throw new ControlException(ACTION_REJECTED,"Text input rejected");
-        if(!node.refresh() || !expected.equals(text(node.getText()))) throw new ControlException(RESULT_UNKNOWN,"Text result not confirmed; observe before repeating");
+        if(!node.refresh() || !expected.equals(node.isShowingHintText()?"":text(node.getText()))) throw new ControlException(RESULT_UNKNOWN,"Text result not confirmed; observe before repeating");
         return new Result("verified","Exact field text verified");
     }
 }
