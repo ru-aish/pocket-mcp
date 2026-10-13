@@ -183,13 +183,13 @@ def run():
     passed('invalid/unknown tool arguments rejected')
     fixture()
     state=observe();assert state['package_name']==FIXTURE
-    full=call('phone_observe',include_image=True,max_nodes=0,max_image_dimension=1280)
+    full=call('phone_observe',include_image=True,max_nodes=0,max_image_dimension=640)
     assert not full['isError'],full
     images=[v for v in full['content'] if v['type']=='image'];assert len(images)==1
     data=base64.b64decode(images[0]['data']);assert data[:2]==b'\xff\xd8'
     (args.output/'fixture-screen.jpg').write_bytes(data)
-    assert max(full['structuredContent']['image_width'],full['structuredContent']['image_height'])<=1280
-    assert full['structuredContent']['coordinate_height']>=full['structuredContent']['image_height']
+    assert max(full['structuredContent']['image_width'],full['structuredContent']['image_height'])<=640
+    assert full['structuredContent']['coordinate_height']>full['structuredContent']['image_height']
     passed('real screenshot, original coordinate dimensions and resized JPEG')
     tiny=success('phone_observe',max_nodes=1);assert tiny['nodes_truncated']
     passed('bounded tree reports truncation and omits image by default')

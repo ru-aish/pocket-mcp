@@ -76,6 +76,12 @@ public final class AndroidScreenBackend implements ControlBackend {
     private Rect dimensions() {
         return ((WindowManager) service.getSystemService(Context.WINDOW_SERVICE)).getMaximumWindowMetrics().getBounds();
     }
+    private AccessibilityNodeInfo freshRoot() {
+        if (android.os.Build.VERSION.SDK_INT>=33) service.clearCache();
+        AccessibilityNodeInfo root=service.getRootInActiveWindow();
+        if(root!=null && android.os.Build.VERSION.SDK_INT<33 && !root.refresh()) {root.recycle();return null;}
+        return root;
+    }
 
     @Override public synchronized Observation observe(boolean image, int maxDimension, int maxNodes) throws ControlException {
         if (maxDimension < 256 || maxDimension > 2048 || maxNodes < 0 || maxNodes > 500) {
@@ -83,7 +89,7 @@ public final class AndroidScreenBackend implements ControlBackend {
         }
         Observation base = onMain(() -> {
             Rect bounds = dimensions();
-            AccessibilityNodeInfo root = service.getRootInActiveWindow();
+            AccessibilityNodeInfo root = freshRoot();
             List<Node> nodes = new ArrayList<>();
             String pkg = ""; int window = -1; boolean[] truncated = {false};
             if (root != null) {
@@ -116,6 +122,7 @@ public final class AndroidScreenBackend implements ControlBackend {
     private static String clipped(String text) { return text.length() <= 1000 ? text : text.substring(0,1000); }
     private static void dump(AccessibilityNodeInfo node, List<Node> nodes, int limit, int depth, boolean[] truncated) {
         if (nodes.size() >= limit || depth > 30) { truncated[0] = true; return; }
+        if(android.os.Build.VERSION.SDK_INT<33 && !node.refresh()) {truncated[0]=true;return;}
         if (node.isVisibleToUser()) {
             Rect b = new Rect(); node.getBoundsInScreen(b);
             boolean password = node.isPassword();
@@ -168,7 +175,7 @@ public final class AndroidScreenBackend implements ControlBackend {
 
     private void validateContext(Observation expected) throws ControlException {
         Rect d = dimensions();
-        AccessibilityNodeInfo root = service.getRootInActiveWindow();
+        AccessibilityNodeInfo root = freshRoot();
         if (root == null) throw new ControlException(NOT_READY,"No active accessibility window");
         try {
             if (!expected.packageName().equals(text(root.getPackageName())) || expected.windowId()!=root.getWindowId()
@@ -235,7 +242,7 @@ public final class AndroidScreenBackend implements ControlBackend {
             if (!service.performGlobalAction(key)) throw new ControlException(ACTION_REJECTED,"System navigation rejected");
             return new Result("dispatched","Android navigation accepted");
         }
-        AccessibilityNodeInfo root = service.getRootInActiveWindow();
+        AccessibilityNodeInfo root = freshRoot();
         if (root==null) throw new ControlException(NOT_READY,"No active window");
         AccessibilityNodeInfo node = null;
         try {
