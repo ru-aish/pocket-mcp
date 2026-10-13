@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
-      APK_KEYSTORE: ${{ runner.temp }}/pocket-mcp.jks
+      APK_KEYSTORE: /tmp/pocket-mcp-signing.jks
       APK_STORE_PASSWORD: ${{ secrets.APK_STORE_PASSWORD }}
       APK_KEY_PASSWORD: ${{ secrets.APK_KEY_PASSWORD }}
     steps:
