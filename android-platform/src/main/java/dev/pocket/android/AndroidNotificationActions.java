@@ -16,22 +16,27 @@ import static dev.pocket.control.ControlException.Code.*;
 public final class AndroidNotificationActions {
     private final NotificationListenerService listener;
     public AndroidNotificationActions(NotificationListenerService connectedListener) { listener=connectedListener; }
-    public record Reply(String notificationKey,long postedAt,String packageName,int actionIndex,String label) {}
+    public record Reply(String notificationKey,long postedAt,String packageName,int actionIndex,String label,String title,String conversationTitle,Boolean groupConversation) {}
 
     public List<Reply> replies() throws ControlException {
         List<Reply> result=new ArrayList<>();
         for(StatusBarNotification item:active()) {
+            Notification notification=item.getNotification();
+            Notification.MessagingStyle style=Notification.MessagingStyle.extractMessagingStyleFromNotification(notification);
+            CharSequence title=notification.extras.getCharSequence(Notification.EXTRA_TITLE);
+            CharSequence conversation=style==null?null:style.getConversationTitle();
             Notification.Action[] actions=item.getNotification().actions;
             if(actions==null) continue;
             for(int i=0;i<actions.length;i++) {
                 RemoteInput[] inputs=actions[i].getRemoteInputs();
                 if(inputs!=null && inputs.length==1 && inputs[0].getAllowFreeFormInput() && actions[i].actionIntent!=null) {
-                    result.add(new Reply(item.getKey(),item.getPostTime(),item.getPackageName(),i,String.valueOf(actions[i].title)));
+                    result.add(new Reply(item.getKey(),item.getPostTime(),item.getPackageName(),i,String.valueOf(actions[i].title),clipped(title),clipped(conversation),style==null?null:style.isGroupConversation()));
                 }
             }
         }
         return result;
     }
+    private static String clipped(CharSequence value) {String s=value==null?"":value.toString();return s.length()>1000?s.substring(0,1000):s;}
 
     public AndroidSystemActions.Outcome reply(String key,long postedAt,int actionIndex,String text) throws ControlException {
         if(text==null || text.trim().isEmpty() || text.length()>20000) throw new ControlException(INVALID_ARGUMENT,"Reply text required");

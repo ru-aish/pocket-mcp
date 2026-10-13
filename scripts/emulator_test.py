@@ -131,13 +131,16 @@ def run():
     adb('install','-r',args.apk)
     # Hosted debug fixture keys can change between runs; only this disposable fixture is reset.
     adb('uninstall',FIXTURE,check=False);adb('install',args.fixture)
+    adb('shell','cmd','notification','disallow_listener',PACKAGE+'/'+PACKAGE+'.PhoneNotifications',check=False)
     adb('shell','am','force-stop',PACKAGE);adb('shell','am','force-stop',FIXTURE)
     for perm in ('READ_CONTACTS','CALL_PHONE','READ_PHONE_STATE','SEND_SMS','READ_CALENDAR','WRITE_CALENDAR'):
         adb('shell','pm','revoke',PACKAGE,'android.permission.'+perm,check=False)
     for perm in ('READ_CONTACTS','WRITE_CONTACTS','READ_CALENDAR','WRITE_CALENDAR'):
         adb('shell','pm','grant',FIXTURE,'android.permission.'+perm)
     api=int(adb('shell','getprop','ro.build.version.sdk').strip())
-    if api>=33: adb('shell','pm','grant',PACKAGE,'android.permission.POST_NOTIFICATIONS')
+    if api>=33:
+        adb('shell','pm','grant',PACKAGE,'android.permission.POST_NOTIFICATIONS')
+        adb('shell','pm','grant',FIXTURE,'android.permission.POST_NOTIFICATIONS')
     if api>=33: adb('shell','appops','set',PACKAGE,'ACCESS_RESTRICTED_SETTINGS','allow')
     adb('shell','input','keyevent','KEYCODE_WAKEUP');adb('shell','wm','dismiss-keyguard')
     # Preserve any existing emulator accessibility services. This never targets the USB phone.
@@ -245,6 +248,22 @@ def run():
     passed('SMS and calls denied without grants; no real message/call sent')
     missing=call('phone_notifications');assert missing['isError']
     passed('notification access gate reports unavailable rather than success')
+    adb('shell','cmd','notification','allow_listener',PACKAGE+'/'+PACKAGE+'.PhoneNotifications')
+    deadline=time.monotonic()+20
+    while time.monotonic()<deadline:
+        if success('phone_capabilities')['notification_listener_connected']: break
+        time.sleep(.3)
+    replies=success('phone_notifications')['reply_actions'];reply=next(r for r in replies if r['package_name']==FIXTURE)
+    assert 'Ada' in reply['title'] or 'Ada' in reply['conversation_title']
+    assert reply['group_conversation'] is False
+    fixture()
+    success('phone_reply',notification_key=reply['notification_key'],posted_at_ms=reply['posted_at_ms'],action_index=reply['action_index'],text='Synthetic reply only',operation_id=newop('reply'))
+    text('STATUS_REPLY:Synthetic reply only')
+    passed('app-provided notification reply updates the actual receiving fixture')
+    success('phone_media',package_name=FIXTURE,action='play',operation_id=newop('play'));text('STATUS_MEDIA_PLAYING')
+    assert any(m['package_name']==FIXTURE and m['playback_state']==3 for m in success('phone_capabilities')['media_sessions'])
+    success('phone_media',package_name=FIXTURE,action='pause',operation_id=newop('pause'));text('STATUS_MEDIA_PAUSED')
+    passed('direct media-session play/pause with native state readback')
     apps=success('phone_apps')['apps'];assert any(a['package_name']==FIXTURE for a in apps)
     launched=success('phone_open_app',package_name=FIXTURE,operation_id=newop('launch'));assert launched['status']=='requested';text('MCP_TEST_FIXTURE')
     passed('launcher discovery and launch verified with actual foreground package')

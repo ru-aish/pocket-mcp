@@ -100,6 +100,13 @@ final class PhoneTools {
             try {permissions.put(permission,context.checkSelfPermission(permission)==PackageManager.PERMISSION_GRANTED);}catch(Exception ignored){}
         }
         JSONArray accounts=new JSONArray();
+        JSONArray media=new JSONArray();
+        if(PhoneNotifications.connected!=null) {
+            try {for(android.media.session.MediaController controller:new AndroidMediaActions(context,new ComponentName(context,PhoneNotifications.class)).sessions()) {
+                android.media.session.PlaybackState state=controller.getPlaybackState();
+                media.put(Json.obj("package_name",controller.getPackageName(),"playback_state",state==null?null:state.getState(),"position_ms",state==null?null:state.getPosition(),"supported_actions",state==null?null:state.getActions()));
+            }}catch(Exception unavailable) {}
+        }
         JSONArray subscriptions=new JSONArray();String callState="unknown";
         if(context.checkSelfPermission(Manifest.permission.READ_PHONE_STATE)==PackageManager.PERMISSION_GRANTED) {
             try {for(PhoneAccountHandle h:context.getSystemService(TelecomManager.class).getCallCapablePhoneAccounts()) accounts.put(Json.obj("id",accountId(h),"label",String.valueOf(context.getSystemService(TelecomManager.class).getPhoneAccount(h).getLabel())));}catch(Exception ignored){}
@@ -109,7 +116,7 @@ final class PhoneTools {
                 int state=context.getSystemService(android.telephony.TelephonyManager.class).getCallState();callState=switch(state) {case 0 -> "idle";case 1 -> "ringing";case 2 -> "offhook";default -> "unknown";};
             }catch(Exception denied) {}
         }
-        return Json.tool(Json.obj("version",BuildConfig.VERSION_NAME,"operation_prefix",operations.prefix(),"accessibility_connected",PhoneObserver.connected!=null,"notification_listener_connected",PhoneNotifications.connected!=null,"interactive",context.getSystemService(PowerManager.class).isInteractive(),"locked",context.getSystemService(KeyguardManager.class).isKeyguardLocked(),"permissions",permissions,"phone_accounts",accounts,"sms_subscriptions",subscriptions,"call_state",callState,"call_state_note","offhook includes dialing; it is not connection proof","tunnel_native_loaded",ServerService.nativeLoaded,"connection",ServerService.status(),"preferred_order",Json.arr("direct_android_api","app_provided_action","semantic_accessibility","screen_gesture")));
+        return Json.tool(Json.obj("version",BuildConfig.VERSION_NAME,"operation_prefix",operations.prefix(),"accessibility_connected",PhoneObserver.connected!=null,"notification_listener_connected",PhoneNotifications.connected!=null,"interactive",context.getSystemService(PowerManager.class).isInteractive(),"locked",context.getSystemService(KeyguardManager.class).isKeyguardLocked(),"permissions",permissions,"phone_accounts",accounts,"sms_subscriptions",subscriptions,"media_sessions",media,"call_state",callState,"call_state_note","offhook includes dialing; it is not connection proof","tunnel_native_loaded",ServerService.nativeLoaded,"connection",ServerService.status(),"preferred_order",Json.arr("direct_android_api","app_provided_action","semantic_accessibility","screen_gesture")));
     }
     private JSONObject dispatch(String name,JSONObject a) throws Exception {
         switch(name) {
@@ -151,7 +158,7 @@ final class PhoneTools {
                 JSONObject result=outcome(sms.sendSms(a.getString("number"),a.getString("text"),sim,sent,delivered));result.getJSONObject("structuredContent").put("parts",count);result.getJSONArray("content").getJSONObject(0).put("text",result.getJSONObject("structuredContent").toString());return result;
             }
             case "phone_notifications": {
-                JSONArray replies=new JSONArray();for(AndroidNotificationActions.Reply r:new AndroidNotificationActions(PhoneNotifications.connected).replies()) replies.put(Json.obj("notification_key",r.notificationKey(),"posted_at_ms",r.postedAt(),"package_name",r.packageName(),"action_index",r.actionIndex(),"label",r.label()));return Json.tool(Json.obj("reply_actions",replies));
+                JSONArray replies=new JSONArray();for(AndroidNotificationActions.Reply r:new AndroidNotificationActions(PhoneNotifications.connected).replies()) replies.put(Json.obj("notification_key",r.notificationKey(),"posted_at_ms",r.postedAt(),"package_name",r.packageName(),"action_index",r.actionIndex(),"label",r.label(),"title",r.title(),"conversation_title",r.conversationTitle(),"group_conversation",r.groupConversation(),"identity_note","Titles are recipient hints, not contact identity proof; distinguish group conversations before replying"));return Json.tool(Json.obj("reply_actions",replies));
             }
             case "phone_reply":return outcome(new AndroidNotificationActions(PhoneNotifications.connected).reply(a.getString("notification_key"),a.getLong("posted_at_ms"),a.getInt("action_index"),a.getString("text")));
             case "phone_media":return outcome(new AndroidMediaActions(context,new ComponentName(context,PhoneNotifications.class)).control(a.getString("package_name"),a.getString("action"),a.optLong("position_ms",0)));

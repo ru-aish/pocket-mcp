@@ -16,6 +16,10 @@ import android.widget.TextView;
  */
 public class FixtureActivity extends Activity {
     private int clicks;
+    static FixtureActivity active;
+    private TextView activeStatus;
+    private android.media.session.MediaSession media;
+    static void reply(String text) {if(active!=null) active.activeStatus.setText("STATUS_REPLY:"+text);}
     private TextView label(String text, int id) {
         TextView result = new TextView(this);
         result.setText(text);
@@ -47,6 +51,7 @@ public class FixtureActivity extends Activity {
         outer.addView(inputFocused);
 
         TextView status = label("STATUS_READY", R.id.mcp_test_status);
+        activeStatus=status;active=this;
         inputFocused.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);
         inputFocused.setOnEditorActionListener((v,action,event)-> {status.setText("STATUS_ENTERED:"+inputFocused.getText());return true;});
 
@@ -77,7 +82,27 @@ public class FixtureActivity extends Activity {
         outer.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
         setContentView(outer);
         seedProviders();
+        prepareAppActions(status);
     }
+    private void prepareAppActions(TextView status) {
+        media=new android.media.session.MediaSession(this,"PocketFixture");
+        long actions=android.media.session.PlaybackState.ACTION_PLAY|android.media.session.PlaybackState.ACTION_PAUSE;
+        media.setPlaybackState(new android.media.session.PlaybackState.Builder().setActions(actions).setState(android.media.session.PlaybackState.STATE_PAUSED,0,0).build());
+        media.setCallback(new android.media.session.MediaSession.Callback() {
+            @Override public void onPlay() {status.setText("STATUS_MEDIA_PLAYING");media.setPlaybackState(new android.media.session.PlaybackState.Builder().setActions(actions).setState(3,0,1).build());}
+            @Override public void onPause() {status.setText("STATUS_MEDIA_PAUSED");media.setPlaybackState(new android.media.session.PlaybackState.Builder().setActions(actions).setState(2,0,0).build());}
+        });media.setActive(true);
+        if(android.os.Build.VERSION.SDK_INT>=33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED) return;
+        android.app.NotificationManager manager=getSystemService(android.app.NotificationManager.class);
+        manager.createNotificationChannel(new android.app.NotificationChannel("fixture","MCP test fixture",android.app.NotificationManager.IMPORTANCE_LOW));
+        android.app.PendingIntent pending=android.app.PendingIntent.getBroadcast(this,0,new android.content.Intent(this,FixtureReplyReceiver.class),android.app.PendingIntent.FLAG_UPDATE_CURRENT|android.app.PendingIntent.FLAG_MUTABLE);
+        android.app.Person sender=new android.app.Person.Builder().setName("Pocket MCP Test Ada").build();
+        android.app.Notification.MessagingStyle style=new android.app.Notification.MessagingStyle(new android.app.Person.Builder().setName("You").build()).setConversationTitle("Pocket MCP Test Ada").setGroupConversation(false).addMessage("Synthetic reply test",System.currentTimeMillis(),sender);
+        android.app.Notification notification=new android.app.Notification.Builder(this,"fixture").setSmallIcon(android.R.drawable.ic_dialog_info).setStyle(style)
+            .addAction(new android.app.Notification.Action.Builder(null,"Reply",pending).addRemoteInput(new android.app.RemoteInput.Builder("reply").setLabel("Reply").build()).build()).build();
+        manager.notify(42,notification);
+    }
+    @Override protected void onDestroy() {if(active==this) active=null;if(media!=null) media.release();super.onDestroy();}
     private void seedProviders() {
         try {
             if(checkSelfPermission(android.Manifest.permission.WRITE_CONTACTS)==android.content.pm.PackageManager.PERMISSION_GRANTED) {
