@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace = "ai.closepaw.mcp.fixture"
+    namespace = "dev.pocket.fixture"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "ai.closepaw.mcp.fixture"
+        applicationId = "dev.pocket.fixture"
         minSdk = 31
         targetSdk = 35
         versionCode = 1

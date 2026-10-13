@@ -1,4 +1,4 @@
-package ai.closepaw.mcp.fixture;
+package dev.pocket.fixture;
 
 import android.app.Activity;
 import android.os.Bundle;

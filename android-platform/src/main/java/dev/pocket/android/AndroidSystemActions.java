@@ -48,7 +48,8 @@ public final class AndroidSystemActions {
         try(Cursor c=context.getContentResolver().query(uri,columns,null,null,null)) {
             if(c!=null) while(c.moveToNext() && unique.size()<limit) {
                 Contact contact=new Contact(c.getLong(0),c.getString(1),c.getString(2));
-                unique.put(contact.contactId()+":"+normalizePhone(contact.number()),contact);
+                try {unique.put(contact.contactId()+":"+normalizePhone(contact.number()),contact);}
+                catch(ControlException unsupportedNumber) { /* Skip unsupported service codes/extensions. */ }
             }
         }
         return new ArrayList<>(unique.values());
