@@ -57,8 +57,10 @@ def click(description,scroll=True):
                 if y>h*.90: continue # Avoid partially clipped controls under navigation bars.
                 adb('shell','input','tap',(points[0]+points[2])//2,y);time.sleep(.3);return
         if not scroll: break
-        # Scroll in the page margin: text fields may intercept drags through their contents.
-        adb('shell','input','swipe',max(8,w//30),int(h*.80),max(8,w//30),int(h*.30),250)
+        # Search both ways: Stop/Save can be above a page left at its bottom.
+        # Use the page margin because text fields may intercept content drags.
+        start,end=(.80,.30) if attempt<4 else (.30,.80)
+        adb('shell','input','swipe',max(8,w//30),int(h*start),max(8,w//30),int(h*end),250)
     raise AssertionError('Bootstrap UI control missing: '+description)
 
 
@@ -225,7 +227,6 @@ def run():
     act('type',text='Focused_9',replace=True);text('Focused_9')
     act('key',key='enter');text('STATUS_ENTERED:Focused_9')
     passed('coordinate tap, focused input and real IME Enter postcondition')
-    act('key',key='back')
     for _ in range(8):
         if any('MCP_BOTTOM_MARKER' in n['text'] for n in observe()['nodes']): break
         act('scroll','mcp_test_scroll',direction='down')
@@ -268,6 +269,9 @@ def run():
     replies=success('phone_notifications')['reply_actions'];reply=next(r for r in replies if r['package_name']==FIXTURE)
     assert 'Ada' in reply['title'] or 'Ada' in reply['conversation_title']
     assert reply['group_conversation'] is False
+    stale_reply=call('phone_reply',notification_key=reply['notification_key'],posted_at_ms=reply['posted_at_ms']+1,action_index=reply['action_index'],text='Must not be sent',operation_id=newop('stalereply'))
+    assert stale_reply['isError'] and stale_reply['structuredContent']['code']=='STALE_OBSERVATION'
+    passed('changed notification reply capability rejected before dispatch')
     success('phone_reply',notification_key=reply['notification_key'],posted_at_ms=reply['posted_at_ms'],action_index=reply['action_index'],text='Synthetic reply only',operation_id=newop('reply'))
     text('STATUS_REPLY:Synthetic reply only')
     passed('app-provided notification reply updates the actual receiving fixture')
@@ -275,6 +279,9 @@ def run():
     assert any(m['package_name']==FIXTURE and m['playback_state']==3 for m in success('phone_capabilities')['media_sessions'])
     success('phone_media',package_name=FIXTURE,action='pause',operation_id=newop('pause'));text('STATUS_MEDIA_PAUSED')
     passed('direct media-session play/pause with native state readback')
+    unsupported=call('phone_media',package_name=FIXTURE,action='seek',position_ms=1000,operation_id=newop('seek'))
+    assert unsupported['isError'] and unsupported['structuredContent']['code']=='UNSUPPORTED',unsupported
+    passed('unadvertised media action rejected')
     apps=success('phone_apps')['apps'];assert any(a['package_name']==FIXTURE for a in apps)
     launched=success('phone_open_app',package_name=FIXTURE,operation_id=newop('launch'));assert launched['status']=='requested';text('MCP_TEST_FIXTURE')
     passed('launcher discovery and launch verified with actual foreground package')
@@ -300,7 +307,7 @@ def run():
     adb('forward','--remove','tcp:'+str(args.port))
 
 
-report={'apk_sha256':hashlib.sha256(args.apk.read_bytes()).hexdigest(),'serial':args.serial,'built_locally':False,'checks':checks,'scope':'Signed GitHub release on real local Fedora Android emulator; no live call/SMS or public ngrok account test'}
+report={'apk_sha256':hashlib.sha256(args.apk.read_bytes()).hexdigest(),'fixture_sha256':hashlib.sha256(args.fixture.read_bytes()).hexdigest(),'serial':args.serial,'built_locally':False,'checks':checks,'scope':'Signed GitHub release on real local Fedora Android emulator; no live call/SMS or public ngrok account test'}
 try:
     run();report['passed']=True
 except Exception as e:
