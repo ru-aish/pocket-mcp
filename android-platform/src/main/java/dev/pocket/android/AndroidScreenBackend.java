@@ -272,9 +272,20 @@ public final class AndroidScreenBackend implements ControlBackend {
                 };
                 default -> throw new ControlException(UNSUPPORTED,"Unsupported native action");
             };
+            if(a.kind()==Kind.SCROLL && !supports(node,action)) {
+                // Native vertical widgets commonly advertise forward/backward rather than directional actions.
+                if("down".equals(a.direction())) action=AccessibilityNodeInfo.ACTION_SCROLL_FORWARD;
+                else if("up".equals(a.direction())) action=AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD;
+                else throw new ControlException(UNSUPPORTED,"Horizontal native scrolling not advertised; use an observed swipe");
+                if(!supports(node,action)) throw new ControlException(UNSUPPORTED,"No native scroll action in this direction");
+            }
             if (!node.performAction(action)) throw new ControlException(ACTION_REJECTED,"Native action rejected; no fake Enter or automatic input retry");
             return new Result("dispatched","Native Android action accepted");
         } finally { if (node!=null) node.recycle(); root.recycle(); }
+    }
+    private static boolean supports(AccessibilityNodeInfo node,int id) {
+        for(AccessibilityNodeInfo.AccessibilityAction action:node.getActionList()) if(action.getId()==id) return true;
+        return false;
     }
 
     private static void find(AccessibilityNodeInfo node,Action a,List<AccessibilityNodeInfo> out,int depth) throws ControlException {

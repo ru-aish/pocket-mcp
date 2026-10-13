@@ -224,6 +224,7 @@ def run():
     for _ in range(8):
         if any('MCP_BOTTOM_MARKER' in n['text'] for n in observe()['nodes']): break
         act('scroll','mcp_test_scroll',direction='down')
+        time.sleep(.35) # Android smooth scrolling can outlast the input acknowledgement.
     text('MCP_BOTTOM_MARKER');passed('semantic scrolling reveals fixture bottom marker')
     state,node=target('mcp_test_scroll');b=node['bounds'];x=(b['left']+b['right'])//2
     act('swipe',x=x,y=b['top']+40,end_x=x,end_y=b['bottom']-40,duration_ms=450)
