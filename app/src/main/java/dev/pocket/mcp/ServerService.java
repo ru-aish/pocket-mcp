@@ -47,8 +47,7 @@ public final class ServerService extends android.app.Service {
             stage="local-server";McpServer created=new McpServer(this,bearer);created.start(10_000,false);
             synchronized(this) {if(stopped) {created.stop();return;}server=created;running=true;}
             stage="native-load";System.loadLibrary("ngrok_java");Class.forName("com.ngrok.NativeSession");nativeLoaded=true;
-            if(local) {stage="local-only";update("Local connection active");return;}
-            stage="ngrok-connect";
+            synchronized(this) {if(stopped) return;if(local) {stage="local-only";update("Local connection active");return;}stage="ngrok-connect";}
             Session connected=Session.withAuthtoken(authtoken).addClientInfo("pocket-mcp",BuildConfig.VERSION_NAME).connect();
             synchronized(this) {if(stopped) {connected.close();return;}session=connected;}
             stage="endpoint-forward";com.ngrok.HttpBuilder builder=connected.httpEndpoint();String domain=secrets.read("domain");if(!domain.isEmpty()) builder.domain(domain);

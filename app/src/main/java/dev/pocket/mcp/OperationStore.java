@@ -68,7 +68,7 @@ final class OperationStore extends SQLiteOpenHelper {
         db.beginTransaction();
         try {db.execSQL("DELETE FROM receipts WHERE operation IN (SELECT id FROM operations WHERE epoch<?)",new Object[]{current-1});db.delete("operations","epoch<?",new String[]{String.valueOf(current-1)});db.setTransactionSuccessful();}
         finally {db.endTransaction();}
-        try(Cursor c=db.rawQuery("SELECT count(*) FROM operations",null)) {c.moveToFirst();if(c.getInt(0)>=LIMIT) return Json.failure("LEDGER_FULL","Operation history is full; inspect/export before starting a new installation");}
+        try(Cursor c=db.rawQuery("SELECT count(*) FROM operations",null)) {c.moveToFirst();if(c.getInt(0)>=LIMIT) return Json.failure("LEDGER_FULL","Retry history is full; wait for old operation windows to expire. No action dispatched.");}
         ContentValues values=new ContentValues();values.put("id",id);values.put("fingerprint",hash.toString());values.put("created",System.currentTimeMillis());values.put("epoch",issued);
         db.insertOrThrow("operations",null,values);
         JSONObject result;
@@ -83,7 +83,7 @@ final class OperationStore extends SQLiteOpenHelper {
     synchronized JSONObject inspect(String id) throws Exception {
         JSONObject result=null;
         try(Cursor c=getReadableDatabase().query("operations",new String[]{"result","created"},"id=?",new String[]{id},null,null,null)) {
-            if(!c.moveToFirst()) return Json.obj("operation_id",id,"status","not_found");
+            if(!c.moveToFirst()) return Json.obj("operation_id",id,"status","not_found","retry_safe",false,"message","Missing history is not proof that an old action did not run. Inspect the actual app/provider state; expired IDs are never dispatched again.");
             result=Json.obj("operation_id",id,"status",c.isNull(0)?"result_unknown":"recorded","created_at_ms",c.getLong(1),"result",c.isNull(0)?null:new JSONObject(c.getString(0)));
         }
         JSONArray receipts=new JSONArray();
