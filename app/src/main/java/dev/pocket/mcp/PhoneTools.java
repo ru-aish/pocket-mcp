@@ -83,11 +83,12 @@ final class PhoneTools {
         if(context.checkSelfPermission(Manifest.permission.READ_PHONE_STATE)!=PackageManager.PERMISSION_GRANTED) throw new ControlException(PERMISSION_REQUIRED,"Grant phone-state access to select a SIM");
         TelecomManager manager=context.getSystemService(TelecomManager.class);if(manager==null) throw new ControlException(NOT_READY,"Telecom unavailable");List<PhoneAccountHandle> accounts;
         try {accounts=manager.getCallCapablePhoneAccounts();}catch(SecurityException denied) {throw new ControlException(PERMISSION_REQUIRED,"Android denied phone-account access");}
-        if(id!=null) for(PhoneAccountHandle handle:accounts) if(handle.getId().equals(id)) return handle;
+        if(id!=null) for(PhoneAccountHandle handle:accounts) if(accountId(handle).equals(id)) return handle;
         if(id!=null) throw new ControlException(INVALID_ARGUMENT,"Unknown phone account ID");
         if(accounts.size()>1) throw new ControlException(AMBIGUOUS_TARGET,"Choose phone_account_id from phone_capabilities for dual-SIM calling");
         if(accounts.isEmpty()) throw new ControlException(NOT_READY,"No callable SIM/account");return accounts.get(0);
     }
+    private static String accountId(PhoneAccountHandle account) {return account.getComponentName().flattenToString()+"#"+account.getId();}
     private PendingIntent receipt(String op,String stage,int part) {
         Intent intent=new Intent(context,SmsReceiptReceiver.class).setData(Uri.parse("pocket-mcp://receipt/"+op+"/"+stage+"/"+part))
             .putExtra("operation",op).putExtra("stage",stage).putExtra("part",part);
@@ -101,7 +102,7 @@ final class PhoneTools {
         JSONArray accounts=new JSONArray();
         JSONArray subscriptions=new JSONArray();String callState="unknown";
         if(context.checkSelfPermission(Manifest.permission.READ_PHONE_STATE)==PackageManager.PERMISSION_GRANTED) {
-            try {for(PhoneAccountHandle h:context.getSystemService(TelecomManager.class).getCallCapablePhoneAccounts()) accounts.put(Json.obj("id",h.getId(),"label",String.valueOf(context.getSystemService(TelecomManager.class).getPhoneAccount(h).getLabel())));}catch(Exception ignored){}
+            try {for(PhoneAccountHandle h:context.getSystemService(TelecomManager.class).getCallCapablePhoneAccounts()) accounts.put(Json.obj("id",accountId(h),"label",String.valueOf(context.getSystemService(TelecomManager.class).getPhoneAccount(h).getLabel())));}catch(Exception ignored){}
             try {
                 List<android.telephony.SubscriptionInfo> active=context.getSystemService(android.telephony.SubscriptionManager.class).getActiveSubscriptionInfoList();
                 if(active!=null) for(android.telephony.SubscriptionInfo info:active) subscriptions.put(Json.obj("subscription_id",info.getSubscriptionId(),"sim_slot",info.getSimSlotIndex(),"label",String.valueOf(info.getDisplayName())));

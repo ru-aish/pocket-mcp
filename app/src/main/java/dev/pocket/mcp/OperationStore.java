@@ -15,10 +15,10 @@ import org.json.JSONObject;
 /** Persist before dispatch. Never replay unfinished operations after process death. */
 final class OperationStore extends SQLiteOpenHelper {
     private static final int LIMIT=20000;
-    OperationStore(Context context) {super(context,"operations.db",null,2);}
+    OperationStore(Context context) {super(context,"operations.db",null,3);}
     @Override public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE operations (id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, result TEXT, created INTEGER NOT NULL, epoch INTEGER NOT NULL)");
-        db.execSQL("CREATE TABLE receipts (operation TEXT NOT NULL, stage TEXT NOT NULL, part INTEGER NOT NULL, code INTEGER NOT NULL, PRIMARY KEY(operation,stage,part))");
+        db.execSQL("CREATE TABLE receipts (operation TEXT NOT NULL, stage TEXT NOT NULL, part INTEGER NOT NULL, code INTEGER NOT NULL, delivery_status INTEGER, PRIMARY KEY(operation,stage,part))");
         createMeta(db);
     }
     private void createMeta(SQLiteDatabase db) {
@@ -28,8 +28,9 @@ final class OperationStore extends SQLiteOpenHelper {
         db.execSQL("INSERT INTO metadata VALUES ('installation',?)",new Object[]{java.util.UUID.randomUUID().toString().replace("-","").substring(0,16)});
     }
     @Override public void onUpgrade(SQLiteDatabase db,int oldVersion,int newVersion) {
-        if(oldVersion==1 && newVersion==2) {db.execSQL("ALTER TABLE operations ADD COLUMN epoch INTEGER NOT NULL DEFAULT 0");createMeta(db);}
-        else throw new IllegalStateException("Unsupported ledger upgrade");
+        if(oldVersion<1 || newVersion!=3) throw new IllegalStateException("Unsupported ledger upgrade");
+        if(oldVersion<2) {db.execSQL("ALTER TABLE operations ADD COLUMN epoch INTEGER NOT NULL DEFAULT 0");createMeta(db);}
+        if(oldVersion<3) db.execSQL("ALTER TABLE receipts ADD COLUMN delivery_status INTEGER");
     }
     private String meta(String name) {try(Cursor c=getReadableDatabase().query("metadata",new String[]{"value"},"name=?",new String[]{name},null,null,null)) {if(!c.moveToFirst()) throw new IllegalStateException("Missing metadata");return c.getString(0);}}
     private long epoch() {
@@ -87,15 +88,20 @@ final class OperationStore extends SQLiteOpenHelper {
             result=Json.obj("operation_id",id,"status",c.isNull(0)?"result_unknown":"recorded","created_at_ms",c.getLong(1),"result",c.isNull(0)?null:new JSONObject(c.getString(0)));
         }
         JSONArray receipts=new JSONArray();
-        try(Cursor c=getReadableDatabase().query("receipts",new String[]{"stage","part","code"},"operation=?",new String[]{id},null,null,"stage,part")) {
-            while(c.moveToNext()) receipts.put(Json.obj("stage",c.getString(0),"part",c.getInt(1),"android_result_code",c.getInt(2),"success",c.getInt(2)==android.app.Activity.RESULT_OK));
+        try(Cursor c=getReadableDatabase().query("receipts",new String[]{"stage","part","code","delivery_status"},"operation=?",new String[]{id},null,null,"stage,part")) {
+            while(c.moveToNext()) {
+                boolean sent="sent".equals(c.getString(0));boolean ok=c.getInt(2)==android.app.Activity.RESULT_OK;
+                boolean confirmed=!sent && ok && !c.isNull(3) && c.getInt(3)==0;
+                receipts.put(Json.obj("stage",c.getString(0),"part",c.getInt(1),"android_result_code",c.getInt(2),"delivery_status",c.isNull(3)?null:c.getInt(3),"success",sent?ok:(c.isNull(3)?null:confirmed),"delivery_confirmed",confirmed));
+            }
         }
         result.put("receipts",receipts);return result;
     }
-    synchronized void receipt(String op,String stage,int part,int code) {
+    synchronized void receipt(String op,String stage,int part,int code,Integer deliveryStatus) {
         if(op==null || !("sent".equals(stage)||"delivered".equals(stage)) || part<0) return;
         try(Cursor c=getReadableDatabase().query("operations",new String[]{"id"},"id=?",new String[]{op},null,null,null)) {if(!c.moveToFirst()) return;}
         ContentValues v=new ContentValues();v.put("operation",op);v.put("stage",stage);v.put("part",part);v.put("code",code);
+        if(deliveryStatus==null) v.putNull("delivery_status");else v.put("delivery_status",deliveryStatus);
         getWritableDatabase().insertWithOnConflict("receipts",null,v,SQLiteDatabase.CONFLICT_REPLACE);
     }
 }
