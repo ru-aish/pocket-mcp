@@ -22,15 +22,15 @@ public final class AndroidNotificationActions {
         List<Reply> result=new ArrayList<>();
         for(StatusBarNotification item:active()) {
             Notification notification=item.getNotification();
-            Notification.MessagingStyle style=Notification.MessagingStyle.extractMessagingStyleFromNotification(notification);
             CharSequence title=notification.extras.getCharSequence(Notification.EXTRA_TITLE);
-            CharSequence conversation=style==null?null:style.getConversationTitle();
+            CharSequence conversation=notification.extras.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE);
+            Boolean group=notification.extras.containsKey(Notification.EXTRA_IS_GROUP_CONVERSATION)?notification.extras.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION):null;
             Notification.Action[] actions=item.getNotification().actions;
             if(actions==null) continue;
             for(int i=0;i<actions.length;i++) {
                 RemoteInput[] inputs=actions[i].getRemoteInputs();
                 if(inputs!=null && inputs.length==1 && inputs[0].getAllowFreeFormInput() && actions[i].actionIntent!=null) {
-                    result.add(new Reply(item.getKey(),item.getPostTime(),item.getPackageName(),i,String.valueOf(actions[i].title),clipped(title),clipped(conversation),style==null?null:style.isGroupConversation()));
+                    result.add(new Reply(item.getKey(),item.getPostTime(),item.getPackageName(),i,String.valueOf(actions[i].title),clipped(title),clipped(conversation),group));
                 }
             }
         }
