@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item type="id" name="mcp_test_input" />
+    <item type="id" name="mcp_focused_input" />
+    <item type="id" name="mcp_test_status" />
+    <item type="id" name="mcp_test_click" />
+    <item type="id" name="mcp_test_long_click" />
+    <item type="id" name="mcp_test_scroll" />
+</resources>

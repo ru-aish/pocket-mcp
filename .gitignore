@@ -1,0 +1,12 @@
+.gradle/
+**/build/
+local.properties
+__pycache__/
+*.pyc
+*.jks
+*.keystore
+*.so
+*.apk
+artifacts/
+connection.json
+.emulator-token

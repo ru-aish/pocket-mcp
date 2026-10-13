@@ -1,0 +1,24 @@
+{
+  "version": "1.0",
+  "purpose": "Separate the agent and MCP transport from the operating-system driver.",
+  "observe": {
+    "input": {"include_image": "boolean", "max_image_dimension": "integer 256..2048", "max_nodes": "integer 0..500"},
+    "output": ["snapshot_id", "captured_at_ms", "package_name", "window_id", "coordinate_width", "coordinate_height", "interactive", "locked", "nodes", "nodes_truncated", "image_bytes", "image_mime", "image_width", "image_height"]
+  },
+  "execute": {
+    "input": ["kind", "snapshot_id", "x", "y", "end_x", "end_y", "duration_ms", "text", "replace", "key", "direction", "selector"],
+    "kind": ["tap", "click", "long_click", "long_press", "swipe", "scroll", "type", "key"],
+    "selector": ["resource_id", "text", "description"],
+    "output": ["status", "message"]
+  },
+  "semantics": {
+    "coordinates": "Full physical display pixels; image dimensions may differ. A desktop viewer needs a separate coordinate transform.",
+    "snapshot": "Required, short-lived window/package/geometry guard. Content changes within the same window require semantic target guards or fresh observations.",
+    "requested": "Owning system/app was asked; completion is not established.",
+    "dispatched": "Input was accepted/completed; task outcome is not established.",
+    "verified": "An explicit postcondition was checked.",
+    "unknown_result": "An action may have happened; never replay automatically.",
+    "unsupported": "Report lack of the capability; do not invent successful fallback.",
+    "host_responsibilities": ["authorization", "permission setup", "operation IDs and durable deduplication", "MCP server", "public HTTPS tunnel", "remote viewer", "action outcome verification"]
+  }
+}
