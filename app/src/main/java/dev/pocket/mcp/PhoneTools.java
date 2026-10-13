@@ -99,10 +99,16 @@ final class PhoneTools {
             try {permissions.put(permission,context.checkSelfPermission(permission)==PackageManager.PERMISSION_GRANTED);}catch(Exception ignored){}
         }
         JSONArray accounts=new JSONArray();
+        JSONArray subscriptions=new JSONArray();String callState="unknown";
         if(context.checkSelfPermission(Manifest.permission.READ_PHONE_STATE)==PackageManager.PERMISSION_GRANTED) {
             try {for(PhoneAccountHandle h:context.getSystemService(TelecomManager.class).getCallCapablePhoneAccounts()) accounts.put(Json.obj("id",h.getId(),"label",String.valueOf(context.getSystemService(TelecomManager.class).getPhoneAccount(h).getLabel())));}catch(Exception ignored){}
+            try {
+                List<android.telephony.SubscriptionInfo> active=context.getSystemService(android.telephony.SubscriptionManager.class).getActiveSubscriptionInfoList();
+                if(active!=null) for(android.telephony.SubscriptionInfo info:active) subscriptions.put(Json.obj("subscription_id",info.getSubscriptionId(),"sim_slot",info.getSimSlotIndex(),"label",String.valueOf(info.getDisplayName())));
+                int state=context.getSystemService(android.telephony.TelephonyManager.class).getCallState();callState=switch(state) {case 0 -> "idle";case 1 -> "ringing";case 2 -> "offhook";default -> "unknown";};
+            }catch(Exception denied) {}
         }
-        return Json.tool(Json.obj("version",BuildConfig.VERSION_NAME,"operation_prefix",operations.prefix(),"accessibility_connected",PhoneObserver.connected!=null,"notification_listener_connected",PhoneNotifications.connected!=null,"interactive",context.getSystemService(PowerManager.class).isInteractive(),"locked",context.getSystemService(KeyguardManager.class).isKeyguardLocked(),"permissions",permissions,"phone_accounts",accounts,"tunnel_native_loaded",ServerService.nativeLoaded,"connection",ServerService.status(),"preferred_order",Json.arr("direct_android_api","app_provided_action","semantic_accessibility","screen_gesture")));
+        return Json.tool(Json.obj("version",BuildConfig.VERSION_NAME,"operation_prefix",operations.prefix(),"accessibility_connected",PhoneObserver.connected!=null,"notification_listener_connected",PhoneNotifications.connected!=null,"interactive",context.getSystemService(PowerManager.class).isInteractive(),"locked",context.getSystemService(KeyguardManager.class).isKeyguardLocked(),"permissions",permissions,"phone_accounts",accounts,"sms_subscriptions",subscriptions,"call_state",callState,"call_state_note","offhook includes dialing; it is not connection proof","tunnel_native_loaded",ServerService.nativeLoaded,"connection",ServerService.status(),"preferred_order",Json.arr("direct_android_api","app_provided_action","semantic_accessibility","screen_gesture")));
     }
     private JSONObject dispatch(String name,JSONObject a) throws Exception {
         switch(name) {
@@ -141,7 +147,7 @@ final class PhoneTools {
                 system.requirePermission(Manifest.permission.SEND_SMS);
                 AndroidMessagingActions sms=new AndroidMessagingActions(context);int sim=a.optInt("subscription_id",-1);int count=sms.parts(a.getString("text"),sim);
                 ArrayList<PendingIntent> sent=new ArrayList<>(),delivered=new ArrayList<>();for(int i=0;i<count;i++) {sent.add(receipt(a.getString("operation_id"),"sent",i));delivered.add(receipt(a.getString("operation_id"),"delivered",i));}
-                JSONObject result=outcome(sms.sendSms(a.getString("number"),a.getString("text"),sim,sent,delivered));result.getJSONObject("structuredContent").put("parts",count);return result;
+                JSONObject result=outcome(sms.sendSms(a.getString("number"),a.getString("text"),sim,sent,delivered));result.getJSONObject("structuredContent").put("parts",count);result.getJSONArray("content").getJSONObject(0).put("text",result.getJSONObject("structuredContent").toString());return result;
             }
             case "phone_notifications": {
                 JSONArray replies=new JSONArray();for(AndroidNotificationActions.Reply r:new AndroidNotificationActions(PhoneNotifications.connected).replies()) replies.put(Json.obj("notification_key",r.notificationKey(),"posted_at_ms",r.postedAt(),"package_name",r.packageName(),"action_index",r.actionIndex(),"label",r.label()));return Json.tool(Json.obj("reply_actions",replies));
