@@ -128,7 +128,9 @@ def fixture():
 
 def run():
     global operation_prefix
-    adb('install','-r',args.apk);adb('install','-r',args.fixture)
+    adb('install','-r',args.apk)
+    # Hosted debug fixture keys can change between runs; only this disposable fixture is reset.
+    adb('uninstall',FIXTURE,check=False);adb('install',args.fixture)
     adb('shell','am','force-stop',PACKAGE);adb('shell','am','force-stop',FIXTURE)
     for perm in ('READ_CONTACTS','CALL_PHONE','READ_PHONE_STATE','SEND_SMS','READ_CALENDAR','WRITE_CALENDAR'):
         adb('shell','pm','revoke',PACKAGE,'android.permission.'+perm,check=False)
