@@ -254,10 +254,10 @@ def run():
     while time.monotonic()<deadline:
         if success('phone_capabilities')['notification_listener_connected']: break
         time.sleep(.3)
+    fixture()
     replies=success('phone_notifications')['reply_actions'];reply=next(r for r in replies if r['package_name']==FIXTURE)
     assert 'Ada' in reply['title'] or 'Ada' in reply['conversation_title']
     assert reply['group_conversation'] is False
-    fixture()
     success('phone_reply',notification_key=reply['notification_key'],posted_at_ms=reply['posted_at_ms'],action_index=reply['action_index'],text='Synthetic reply only',operation_id=newop('reply'))
     text('STATUS_REPLY:Synthetic reply only')
     passed('app-provided notification reply updates the actual receiving fixture')
