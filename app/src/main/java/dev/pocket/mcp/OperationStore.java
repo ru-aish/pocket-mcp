@@ -14,13 +14,29 @@ import org.json.JSONObject;
 
 /** Persist before dispatch. Never replay unfinished operations after process death. */
 final class OperationStore extends SQLiteOpenHelper {
-    private static final int LIMIT=2000;
-    OperationStore(Context context) {super(context,"operations.db",null,1);}
+    private static final int LIMIT=20000;
+    OperationStore(Context context) {super(context,"operations.db",null,2);}
     @Override public void onCreate(SQLiteDatabase db) {
-        db.execSQL("CREATE TABLE operations (id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, result TEXT, created INTEGER NOT NULL)");
+        db.execSQL("CREATE TABLE operations (id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, result TEXT, created INTEGER NOT NULL, epoch INTEGER NOT NULL)");
         db.execSQL("CREATE TABLE receipts (operation TEXT NOT NULL, stage TEXT NOT NULL, part INTEGER NOT NULL, code INTEGER NOT NULL, PRIMARY KEY(operation,stage,part))");
+        createMeta(db);
     }
-    @Override public void onUpgrade(SQLiteDatabase db,int oldVersion,int newVersion) {throw new IllegalStateException("Unsupported ledger upgrade");}
+    private void createMeta(SQLiteDatabase db) {
+        db.execSQL("CREATE INDEX operations_epoch ON operations(epoch)");
+        db.execSQL("CREATE TABLE metadata (name TEXT PRIMARY KEY, value TEXT NOT NULL)");
+        db.execSQL("INSERT INTO metadata VALUES ('epoch',?)",new Object[]{System.currentTimeMillis()/86400000L});
+        db.execSQL("INSERT INTO metadata VALUES ('installation',?)",new Object[]{java.util.UUID.randomUUID().toString().replace("-","").substring(0,16)});
+    }
+    @Override public void onUpgrade(SQLiteDatabase db,int oldVersion,int newVersion) {
+        if(oldVersion==1 && newVersion==2) {db.execSQL("ALTER TABLE operations ADD COLUMN epoch INTEGER NOT NULL DEFAULT 0");createMeta(db);}
+        else throw new IllegalStateException("Unsupported ledger upgrade");
+    }
+    private String meta(String name) {try(Cursor c=getReadableDatabase().query("metadata",new String[]{"value"},"name=?",new String[]{name},null,null,null)) {if(!c.moveToFirst()) throw new IllegalStateException("Missing metadata");return c.getString(0);}}
+    private long epoch() {
+        long value=Math.max(Long.parseLong(meta("epoch")),System.currentTimeMillis()/86400000L);
+        ContentValues update=new ContentValues();update.put("value",String.valueOf(value));getWritableDatabase().update("metadata",update,"name='epoch' AND CAST(value AS INTEGER)<?",new String[]{String.valueOf(value)});return value;
+    }
+    synchronized String prefix() {return epoch()+"-"+meta("installation");}
     interface Work {JSONObject run() throws Exception;}
     private static String canonical(Object value) throws Exception {
         if(value instanceof JSONObject o) {
@@ -43,8 +59,17 @@ final class OperationStore extends SQLiteOpenHelper {
                 return c.isNull(1)?Json.failure("RESULT_UNKNOWN","Previously started; inspect current state before repeating"):new JSONObject(c.getString(1));
             }
         }
+        long current=epoch(),issued;
+        java.util.regex.Matcher parsed=java.util.regex.Pattern.compile("([0-9]{1,12})-([0-9a-f]{16})_[A-Za-z0-9_-]{8,48}").matcher(id);
+        if(!parsed.matches() || !parsed.group(2).equals(meta("installation"))) return Json.failure("INVALID_ARGUMENT","Use phone_capabilities.operation_prefix + '_' + a unique nonce for operation_id");
+        issued=Long.parseLong(parsed.group(1));
+        if(issued<current-1 || issued>current) return Json.failure("OPERATION_EXPIRED","Operation ID window expired; inspect the actual outcome, never blindly repeat an old action");
+        // Expired IDs cannot be dispatched again, so old records can be pruned safely.
+        db.beginTransaction();
+        try {db.execSQL("DELETE FROM receipts WHERE operation IN (SELECT id FROM operations WHERE epoch<?)",new Object[]{current-1});db.delete("operations","epoch<?",new String[]{String.valueOf(current-1)});db.setTransactionSuccessful();}
+        finally {db.endTransaction();}
         try(Cursor c=db.rawQuery("SELECT count(*) FROM operations",null)) {c.moveToFirst();if(c.getInt(0)>=LIMIT) return Json.failure("LEDGER_FULL","Operation history is full; inspect/export before starting a new installation");}
-        ContentValues values=new ContentValues();values.put("id",id);values.put("fingerprint",hash.toString());values.put("created",System.currentTimeMillis());
+        ContentValues values=new ContentValues();values.put("id",id);values.put("fingerprint",hash.toString());values.put("created",System.currentTimeMillis());values.put("epoch",issued);
         db.insertOrThrow("operations",null,values);
         JSONObject result;
         try {result=work.run();}

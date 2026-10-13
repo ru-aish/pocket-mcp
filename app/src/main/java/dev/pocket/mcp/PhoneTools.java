@@ -80,8 +80,9 @@ final class PhoneTools {
         return result;
     }
     private PhoneAccountHandle account(String id) throws ControlException {
-        system.requirePermission(Manifest.permission.READ_PHONE_STATE);
-        TelecomManager manager=context.getSystemService(TelecomManager.class);List<PhoneAccountHandle> accounts=manager.getCallCapablePhoneAccounts();
+        if(context.checkSelfPermission(Manifest.permission.READ_PHONE_STATE)!=PackageManager.PERMISSION_GRANTED) throw new ControlException(PERMISSION_REQUIRED,"Grant phone-state access to select a SIM");
+        TelecomManager manager=context.getSystemService(TelecomManager.class);if(manager==null) throw new ControlException(NOT_READY,"Telecom unavailable");List<PhoneAccountHandle> accounts;
+        try {accounts=manager.getCallCapablePhoneAccounts();}catch(SecurityException denied) {throw new ControlException(PERMISSION_REQUIRED,"Android denied phone-account access");}
         if(id!=null) for(PhoneAccountHandle handle:accounts) if(handle.getId().equals(id)) return handle;
         if(id!=null) throw new ControlException(INVALID_ARGUMENT,"Unknown phone account ID");
         if(accounts.size()>1) throw new ControlException(AMBIGUOUS_TARGET,"Choose phone_account_id from phone_capabilities for dual-SIM calling");
@@ -101,7 +102,7 @@ final class PhoneTools {
         if(context.checkSelfPermission(Manifest.permission.READ_PHONE_STATE)==PackageManager.PERMISSION_GRANTED) {
             try {for(PhoneAccountHandle h:context.getSystemService(TelecomManager.class).getCallCapablePhoneAccounts()) accounts.put(Json.obj("id",h.getId(),"label",String.valueOf(context.getSystemService(TelecomManager.class).getPhoneAccount(h).getLabel())));}catch(Exception ignored){}
         }
-        return Json.tool(Json.obj("version",BuildConfig.VERSION_NAME,"accessibility_connected",PhoneObserver.connected!=null,"notification_listener_connected",PhoneNotifications.connected!=null,"interactive",context.getSystemService(PowerManager.class).isInteractive(),"locked",context.getSystemService(KeyguardManager.class).isKeyguardLocked(),"permissions",permissions,"phone_accounts",accounts,"tunnel_native_loaded",ServerService.nativeLoaded,"connection",ServerService.status(),"preferred_order",Json.arr("direct_android_api","app_provided_action","semantic_accessibility","screen_gesture")));
+        return Json.tool(Json.obj("version",BuildConfig.VERSION_NAME,"operation_prefix",operations.prefix(),"accessibility_connected",PhoneObserver.connected!=null,"notification_listener_connected",PhoneNotifications.connected!=null,"interactive",context.getSystemService(PowerManager.class).isInteractive(),"locked",context.getSystemService(KeyguardManager.class).isKeyguardLocked(),"permissions",permissions,"phone_accounts",accounts,"tunnel_native_loaded",ServerService.nativeLoaded,"connection",ServerService.status(),"preferred_order",Json.arr("direct_android_api","app_provided_action","semantic_accessibility","screen_gesture")));
     }
     private JSONObject dispatch(String name,JSONObject a) throws Exception {
         switch(name) {

@@ -20,7 +20,9 @@ if not args.serial.startswith('emulator-'): raise SystemExit('Tests are restrict
 args.output.mkdir(parents=True,exist_ok=True)
 PACKAGE='dev.pocket.mcp';FIXTURE='dev.pocket.fixture'
 token=secrets.token_urlsafe(32)
-checks=[];counter=0
+checks=[];counter=0;operation_prefix=None
+
+def newop(label): return operation_prefix+"_"+label+"_"+secrets.token_hex(10)
 
 
 def adb(*values,check=True,binary=False):
@@ -105,7 +107,7 @@ def act(kind,resource=None,**values):
         state,node=target(resource)
         values['selector']={'resource_id':node['resource_id']}
     else: state=observe()
-    return success('phone_act',kind=kind,snapshot_id=state['snapshot_id'],operation_id='test_'+secrets.token_hex(12),**values)
+    return success('phone_act',kind=kind,snapshot_id=state['snapshot_id'],operation_id=newop('test'),**values)
 
 
 def text(expected):
@@ -121,6 +123,7 @@ def fixture():
 
 
 def run():
+    global operation_prefix
     adb('install','-r',args.apk);adb('install','-r',args.fixture)
     for perm in ('READ_CONTACTS','WRITE_CONTACTS','READ_CALENDAR','WRITE_CALENDAR'):
         adb('shell','pm','grant',FIXTURE,'android.permission.'+perm)
@@ -145,6 +148,7 @@ def run():
         if cap['accessibility_connected']: break
         time.sleep(.4)
     assert cap['accessibility_connected'] and cap['tunnel_native_loaded'],cap
+    operation_prefix=cap['operation_prefix']
     passed('accessibility bound and real JNI wrapper/library initialized')
     assert rpc('ping',authorization=False)[0]==401
     assert rpc('ping',headers={'Authorization':'Bearer invalid'})[0]==401
@@ -182,7 +186,7 @@ def run():
     state,node=target('mcp_test_input');assert node['text'] in ('','MCP_INPUT'),node
     passed('empty text clears field and verifies correctly with hint text')
     act('type','mcp_test_input',text='Pocket_42',replace=True)
-    state,node=target('mcp_test_click');op='dedup_'+secrets.token_hex(10)
+    state,node=target('mcp_test_click');op=newop('dedup')
     action={'kind':'click','snapshot_id':state['snapshot_id'],'selector':{'resource_id':node['resource_id']},'operation_id':op}
     first=success('phone_act',**action);text('STATUS_CLICKED:Pocket_42 COUNT:1')
     second=success('phone_act',**dict(reversed(list(action.items()))));assert first==second;text('COUNT:1')
@@ -209,7 +213,7 @@ def run():
     act('swipe',x=x,y=b['top']+40,end_x=x,end_y=b['bottom']-40,duration_ms=450)
     passed('real swipe gesture dispatched')
     old=observe();adb('shell','am','start','-a','android.settings.SETTINGS');time.sleep(.4)
-    stale=call('phone_act',kind='tap',snapshot_id=old['snapshot_id'],x=50,y=100,operation_id='stale_'+secrets.token_hex(10))
+    stale=call('phone_act',kind='tap',snapshot_id=old['snapshot_id'],x=50,y=100,operation_id=newop('stale'))
     assert stale['isError'] and stale['structuredContent']['code']=='STALE_OBSERVATION',stale
     passed('stale package/window action rejected before dispatch')
     # Provider tests use only seeded emulator data, never a personal phone account.
@@ -218,24 +222,24 @@ def run():
     contacts=success('phone_contacts',query='Pocket MCP Test Ada')['contacts'];assert any(c['number']=='+15550100420' for c in contacts),contacts
     passed('contacts permission gate and direct provider retrieval')
     calendars=success('phone_calendars')['calendars'];calendar=next(c for c in calendars if c['name']=='Pocket Test Calendar' and c['writable'])
-    op_event='event_'+secrets.token_hex(10);now=int(time.time()*1000)
+    op_event=newop('event');now=int(time.time()*1000)
     event={'calendar_id':calendar['id'],'title':'Pocket MCP emulator verification','start_ms':now+3600000,'end_ms':now+7200000,'timezone':'UTC','operation_id':op_event}
     created=success('phone_calendar_create',**event);assert created['status']=='verified'
     assert success('phone_calendar_create',**event)['reference']==created['reference']
     passed('direct calendar insert/readback and retry returns same persisted event')
-    sms=call('phone_sms',number='+15550100420',text='Not sent',operation_id='sms_'+secrets.token_hex(10));assert sms['isError'] and sms['structuredContent']['code']=='PERMISSION_REQUIRED'
-    calling=call('phone_call',number='+15550100420',operation_id='call_'+secrets.token_hex(10));assert calling['isError'] and calling['structuredContent']['code']=='PERMISSION_REQUIRED'
+    sms=call('phone_sms',number='+15550100420',text='Not sent',operation_id=newop('sms'));assert sms['isError'] and sms['structuredContent']['code']=='PERMISSION_REQUIRED'
+    calling=call('phone_call',number='+15550100420',operation_id=newop('call'));assert calling['isError'] and calling['structuredContent']['code']=='PERMISSION_REQUIRED'
     passed('SMS and calls denied without grants; no real message/call sent')
     missing=call('phone_notifications');assert missing['isError']
     passed('notification access gate reports unavailable rather than success')
     apps=success('phone_apps')['apps'];assert any(a['package_name']==FIXTURE for a in apps)
-    launched=success('phone_open_app',package_name=FIXTURE,operation_id='launch_'+secrets.token_hex(10));assert launched['status']=='requested';text('MCP_TEST_FIXTURE')
+    launched=success('phone_open_app',package_name=FIXTURE,operation_id=newop('launch'));assert launched['status']=='requested';text('MCP_TEST_FIXTURE')
     passed('launcher discovery and launch verified with actual foreground package')
     act('key',key='home');time.sleep(.4);assert observe()['package_name']!=FIXTURE
     act('key',key='recents');time.sleep(.4);act('key',key='back')
     passed('Home, Recents and Back navigation')
     fixture();snapshot=observe();adb('shell','input','keyevent','KEYCODE_SLEEP');time.sleep(.4)
-    asleep=call('phone_act',kind='tap',snapshot_id=snapshot['snapshot_id'],x=50,y=100,operation_id='sleep_'+secrets.token_hex(10));assert asleep['isError'] and asleep['structuredContent']['code']=='SCREEN_OFF',asleep
+    asleep=call('phone_act',kind='tap',snapshot_id=snapshot['snapshot_id'],x=50,y=100,operation_id=newop('sleep'));assert asleep['isError'] and asleep['structuredContent']['code']=='SCREEN_OFF',asleep
     adb('shell','input','keyevent','KEYCODE_WAKEUP');adb('shell','wm','dismiss-keyguard')
     passed('screen-off action rejected')
     # Force-stop/restart proves encrypted settings and operation ledger survive process death.
