@@ -4,6 +4,8 @@ A standalone Android MCP app: direct Android APIs first, Android accessibility f
 
 ## Install and connect
 
+[Download ARM64 APK](https://github.com/ru-aish/pocket-mcp/releases/download/v0.1.0/Pocket-MCP-arm64.apk) · [All release assets](https://github.com/ru-aish/pocket-mcp/releases/tag/v0.1.0) · [Validation coverage](VALIDATION.md)
+
 1. Install the signed **Pocket-MCP-arm64.apk** from the release. Android 12+ is required. The universal APK also supports the x86_64 emulator.
 2. Open Pocket MCP. Enter your **ngrok authtoken**, optionally a reserved domain, and save the connection settings. A separate MCP bearer token is generated automatically; replace it only while the connection is stopped.
 3. Enable only the permissions needed. Contacts/calls, calendar and SMS have separate controls. Enable accessibility for screen observation/input. Enable notification access for notification replies and media sessions. Android may require **App info → Allow restricted settings** before enabling a sideloaded accessibility service.
@@ -49,6 +51,8 @@ Use an 8–48 character nonce containing letters, digits, dashes or underscores.
 IDs are tied to this installation and the current/previous UTC-day retry window. Expired IDs cannot execute again, so old records can be pruned safely. The ledger caps active records at 20,000 and stores fingerprints/results/receipts, not screenshots or full message bodies. Its persisted epoch never decreases if the clock moves backward. Missing/expired history is not proof that an old action never occurred; inspect the owning app/provider before starting a new operation. Uninstalling or clearing app data starts a new installation.
 
 ## Builds and validation
+
+The published 0.1.0 universal APK passed **30/30 checks** on the local Fedora Android 15 emulator. See [exact hashes, build provenance, coverage and remaining gaps](VALIDATION.md). The fixture and test-runner fixes did not change the published app APKs.
 
 **APKs compile only on GitHub Actions.** The workflow assembles minified release APKs, runs lint, verifies signatures/ABI contents, and uploads an isolated fixture APK. A persistent signing key in Actions secrets lets future versions update this installation.
 

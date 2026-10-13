@@ -1,0 +1,137 @@
+{
+  "apk_sha256": "c06b629989690be26a88bab7c929cad9a02eef1eb923715e7ee9bcbd640a2c2e",
+  "fixture_sha256": "9fbbf860dd50ab67f8a0373b3405557080358003842d1ef722370c82006b6bf0",
+  "serial": "emulator-5580",
+  "built_locally": false,
+  "checks": [
+    {
+      "name": "signed release installs and starts through normal app UI",
+      "status": "passed"
+    },
+    {
+      "name": "accessibility bound and real JNI wrapper/library initialized",
+      "status": "passed"
+    },
+    {
+      "name": "missing/wrong bearer and browser Origin rejected",
+      "status": "passed"
+    },
+    {
+      "name": "protocol version, method, JSON and content type checks",
+      "status": "passed"
+    },
+    {
+      "name": "initialize, notification, ping and all 16 tool schemas",
+      "status": "passed"
+    },
+    {
+      "name": "invalid/unknown tool arguments rejected",
+      "status": "passed"
+    },
+    {
+      "name": "real screenshot, original coordinate dimensions and resized JPEG",
+      "status": "passed"
+    },
+    {
+      "name": "bounded tree reports truncation and omits image by default",
+      "status": "passed"
+    },
+    {
+      "name": "exact text entry preserves whitespace",
+      "status": "passed"
+    },
+    {
+      "name": "empty text clears field and verifies correctly with hint text",
+      "status": "passed"
+    },
+    {
+      "name": "semantic click, durable deduplication, reordered keys and ID conflict checks",
+      "status": "passed"
+    },
+    {
+      "name": "native long click changes observed fixture state",
+      "status": "passed"
+    },
+    {
+      "name": "gesture long press changes observed fixture state",
+      "status": "passed"
+    },
+    {
+      "name": "coordinate tap, focused input and real IME Enter postcondition",
+      "status": "passed"
+    },
+    {
+      "name": "semantic scrolling reveals fixture bottom marker",
+      "status": "passed"
+    },
+    {
+      "name": "real swipe gesture dispatched",
+      "status": "passed"
+    },
+    {
+      "name": "stale package/window action rejected before dispatch",
+      "status": "passed"
+    },
+    {
+      "name": "contacts permission gate and direct provider retrieval",
+      "status": "passed"
+    },
+    {
+      "name": "direct calendar insert/readback and retry returns same persisted event",
+      "status": "passed"
+    },
+    {
+      "name": "SMS and calls denied without grants; no real message/call sent",
+      "status": "passed"
+    },
+    {
+      "name": "notification access gate reports unavailable rather than success",
+      "status": "passed"
+    },
+    {
+      "name": "changed notification reply capability rejected before dispatch",
+      "status": "passed"
+    },
+    {
+      "name": "app-provided notification reply updates the actual receiving fixture",
+      "status": "passed"
+    },
+    {
+      "name": "direct media-session play/pause with native state readback",
+      "status": "passed"
+    },
+    {
+      "name": "unadvertised media action rejected",
+      "status": "passed"
+    },
+    {
+      "name": "launcher discovery and launch verified with actual foreground package",
+      "status": "passed"
+    },
+    {
+      "name": "Home, Recents and Back navigation",
+      "status": "passed"
+    },
+    {
+      "name": "screen-off action rejected",
+      "status": "passed"
+    },
+    {
+      "name": "encrypted bearer and idempotency ledger survive app process restart",
+      "status": "passed"
+    },
+    {
+      "name": "Stop closes local listener and removes foreground service",
+      "status": "passed"
+    }
+  ],
+  "scope": "Signed GitHub release on real local Fedora Android emulator; no live call/SMS or public ngrok account test",
+  "passed": true,
+  "api": "35",
+  "recorded_at_utc": "2026-10-13T22:05:07.367452+00:00",
+  "apk_source_commit": "451cb6c4c9b4c8dfd24b42b7e5a1fdc24549ccbb",
+  "apk_build_run": "https://github.com/ru-aish/pocket-mcp/actions/runs/38468387302",
+  "fixture_source_commit": "5c9a93ceb3b3bfaa6862dced9b79ed664bf9659d",
+  "fixture_build_run": "https://github.com/ru-aish/pocket-mcp/actions/runs/38474472026",
+  "test_script_commit": "29952a5d2246b00ccbcb3a5b1096952a34dc1464"
+}
