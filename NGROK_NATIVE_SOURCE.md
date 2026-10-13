@@ -28,3 +28,9 @@ This project is not endorsed by either upstream author.
 No ngrok authtoken is included in source, artifacts or test output. Users
 enter their own token on their phone. The build check alone does not prove
 the ngrok tunnel works on a physical phone.
+
+Pocket MCP also includes the Maven 1.1.1 native Java wrapper classes, which the
+API-only ngrok-java artifact loads reflectively. Its build removes the desktop
+Runtime loader from that dependency and supplies a small Android System.loadLibrary
+adapter. SDK logging is disabled to avoid exposing credentials. No legacy MCP
+server code is needed. Release minification preserves the JNI/reflection classes.

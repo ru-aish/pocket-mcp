@@ -1,4 +1,11 @@
 plugins { id("com.android.application") }
+val ngrokNativeClasses by configurations.creating
+val androidNgrokJar by tasks.registering(Jar::class) {
+    archiveBaseName.set("ngrok-native-android")
+    destinationDirectory.set(layout.buildDirectory.dir("ngrok-classes"))
+    from({ ngrokNativeClasses.map { zipTree(it) } })
+    exclude("com/ngrok/Runtime*.class")
+}
 android {
     namespace = "dev.pocket.mcp"
     compileSdk = 36
@@ -26,4 +33,4 @@ android {
     packaging { resources { excludes += "META-INF/DEPENDENCIES" } }
     lint { textReport=true; textOutput=file("build/reports/lint-results-release.txt") }
 }
-dependencies { implementation(project(":android-platform")); implementation("org.nanohttpd:nanohttpd:2.3.1"); implementation("com.ngrok:ngrok-java:1.1.1"); implementation("org.slf4j:slf4j-api:2.0.13") }
+dependencies { implementation(project(":android-platform")); implementation("org.nanohttpd:nanohttpd:2.3.1"); implementation("com.ngrok:ngrok-java:1.1.1"); ngrokNativeClasses("com.ngrok:ngrok-java-native:1.1.1"); implementation(files(androidNgrokJar)) }
