@@ -56,7 +56,12 @@ public class FixtureActivity extends Activity {
         TextView status = label("STATUS_READY", R.id.mcp_test_status);
         activeStatus=status;active=this;
         inputFocused.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);
-        inputFocused.setOnEditorActionListener((v,action,event)-> {status.setText("STATUS_ENTERED:"+inputFocused.getText());return true;});
+        inputFocused.setOnEditorActionListener((v,action,event)-> {
+            status.setText("STATUS_ENTERED:"+inputFocused.getText());
+            getSystemService(android.view.inputmethod.InputMethodManager.class).hideSoftInputFromWindow(v.getWindowToken(),0);
+            outer.requestFocus();
+            return true;
+        });
 
         Button click = new Button(this);
         click.setId(R.id.mcp_test_click);
