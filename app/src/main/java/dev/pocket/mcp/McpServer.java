@@ -15,10 +15,17 @@ final class McpServer extends NanoHTTPD {
     private final ThreadPoolExecutor worker=new ThreadPoolExecutor(1,1,0,TimeUnit.SECONDS,new ArrayBlockingQueue<>(16));
     private volatile boolean closing;
     McpServer(Context context,String bearer) throws Exception {
-        super("127.0.0.1",8765);authorization=("Bearer "+bearer).getBytes(StandardCharsets.UTF_8);tools=new PhoneTools(context);
+        super("127.0.0.1",8765);authorization=("Bearer "+bearer).getBytes(StandardCharsets.UTF_8);tools=new PhoneTools(context);setAsyncRunner(new Connections());
+    }
+    private static final class Connections implements AsyncRunner {
+        private final java.util.Set<ClientHandler> open=ConcurrentHashMap.newKeySet();
+        private final ThreadPoolExecutor threads=new ThreadPoolExecutor(0,16,30,TimeUnit.SECONDS,new SynchronousQueue<>(),r->{Thread t=new Thread(r,"pocket-http");t.setDaemon(true);return t;});
+        public void exec(ClientHandler handler) {open.add(handler);try {threads.execute(handler);}catch(RejectedExecutionException full) {open.remove(handler);handler.close();}}
+        public void closed(ClientHandler handler) {open.remove(handler);}
+        public void closeAll() {for(ClientHandler handler:open) handler.close();open.clear();threads.shutdownNow();}
     }
     private Response response(Response.IStatus code,String body) {Response r=newFixedLengthResponse(code,"application/json; charset=utf-8",body);r.addHeader("Cache-Control","no-store");r.addHeader("X-Content-Type-Options","nosniff");return r;}
-    private Response error(Response.IStatus status,int code,String message,Object id) {return response(status,Json.obj("jsonrpc","2.0","id",id,"error",Json.obj("code",code,"message",message)).toString());}
+    private Response error(Response.IStatus status,int code,String message,Object id) {Response r=response(status,Json.obj("jsonrpc","2.0","id",id,"error",Json.obj("code",code,"message",message)).toString());if(status.getRequestStatus()>=400) r.addHeader("Connection","close");return r;}
     @Override public Response serve(IHTTPSession session) {
         String auth=session.getHeaders().get("authorization");
         if(auth==null || !MessageDigest.isEqual(authorization,auth.getBytes(StandardCharsets.UTF_8))) {Response r=error(Response.Status.UNAUTHORIZED,-32001,"Bearer authorization required",null);r.addHeader("WWW-Authenticate","Bearer");return r;}

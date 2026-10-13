@@ -21,6 +21,8 @@ public final class ServerService extends android.app.Service {
     private volatile Forwarder.Endpoint endpoint;
     private PowerManager.WakeLock wake;
     private Thread starter;
+    private final Handler lifetime=new Handler(Looper.getMainLooper());
+    private final Runnable renewWake=new Runnable() {public void run(){if(stopped || wake==null) return;wake.acquire(20*60*1000L);lifetime.postDelayed(this,15*60*1000L);}};
     static JSONObject status() {return Json.obj("running",running,"stage",stage,"public_url",publicUrl,"public_https_verified",verified,"diagnostic",diagnostic);}
     @Override public void onCreate() {
         super.onCreate();getSystemService(NotificationManager.class).createNotificationChannel(new NotificationChannel("connection","Phone control connection",NotificationManager.IMPORTANCE_LOW));
@@ -35,7 +37,7 @@ public final class ServerService extends android.app.Service {
         if(starter!=null) return START_STICKY;
         stopped=false;stage="starting";diagnostic="";publicUrl="";verified=false;
         secrets.enabled(!local);
-        wake=getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"PocketMCP:Connection");wake.acquire();
+        wake=getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"PocketMCP:Connection");wake.setReferenceCounted(false);renewWake.run();
         starter=new Thread(()->start(local,secrets),"pocket-tunnel");starter.start();
         return local?START_NOT_STICKY:START_STICKY;
     }
@@ -87,7 +89,7 @@ public final class ServerService extends android.app.Service {
     @Override public void onDestroy() {
         synchronized(this) {stopped=true;running=false;verified=false;publicUrl="";if(!"failed".equals(stage)) stage="stopped";if(server!=null) {server.stop();server=null;}}
         Thread cleanup=new Thread(()->{try {if(endpoint!=null) endpoint.close();}catch(Exception ignored){}try {if(session!=null) session.close();}catch(Exception ignored){}},"pocket-stop");cleanup.start();
-        if(wake!=null && wake.isHeld()) wake.release();
+        lifetime.removeCallbacks(renewWake);if(wake!=null && wake.isHeld()) wake.release();
         stopForeground(STOP_FOREGROUND_REMOVE);super.onDestroy();
     }
 }

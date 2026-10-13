@@ -57,6 +57,7 @@ public final class AndroidSystemActions {
 
     public Contact resolveContact(String name) throws ControlException {
         List<Contact> all=findContacts(name,100);
+        if(all.size()>=100) throw new ControlException(AMBIGUOUS_TARGET,"Contact search was truncated; select an explicit number");
         List<Contact> exact=all.stream().filter(c->c.name()!=null && c.name().equalsIgnoreCase(name)).collect(java.util.stream.Collectors.toList());
         List<Contact> candidates=exact.isEmpty()?all:exact;
         if(candidates.size()!=1) throw new ControlException(candidates.isEmpty()?ACTION_REJECTED:AMBIGUOUS_TARGET,
@@ -75,7 +76,8 @@ public final class AndroidSystemActions {
     public Outcome callNumber(String number,PhoneAccountHandle account,boolean speaker) throws ControlException {
         requirePermission(Manifest.permission.CALL_PHONE);
         String normalized=normalizePhone(number);
-        if(!context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_TELEPHONY_CALLING)) {
+        String feature=android.os.Build.VERSION.SDK_INT>=33?PackageManager.FEATURE_TELEPHONY_CALLING:PackageManager.FEATURE_TELEPHONY;
+        if(!context.getPackageManager().hasSystemFeature(feature)) {
             throw new ControlException(UNSUPPORTED,"Device has no telephony calling feature");
         }
         TelecomManager telecom=context.getSystemService(TelecomManager.class);

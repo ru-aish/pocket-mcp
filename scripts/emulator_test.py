@@ -42,15 +42,17 @@ def ui():
 
 
 def click(description,scroll=True):
+    dimensions=re.findall(r'(\d+)x(\d+)',adb('shell','wm','size'))[-1];w,h=map(int,dimensions)
     for attempt in range(12):
         root=ui()
         for node in root.iter('node'):
             if node.get('content-desc')!=description: continue
             points=list(map(int,re.findall(r'\d+',node.get('bounds',''))))
             if len(points)==4 and points[2]>points[0] and points[3]>points[1]:
-                adb('shell','input','tap',(points[0]+points[2])//2,(points[1]+points[3])//2);time.sleep(.3);return
+                y=(points[1]+points[3])//2
+                if y>h*.90: continue # Avoid partially clipped controls under navigation bars.
+                adb('shell','input','tap',(points[0]+points[2])//2,y);time.sleep(.3);return
         if not scroll: break
-        dimensions=re.findall(r'(\d+)x(\d+)',adb('shell','wm','size'))[-1];w,h=map(int,dimensions)
         # Scroll in the page margin: text fields may intercept drags through their contents.
         adb('shell','input','swipe',max(8,w//30),int(h*.80),max(8,w//30),int(h*.30),250)
     raise AssertionError('Bootstrap UI control missing: '+description)
@@ -140,7 +142,9 @@ def run():
     service=PACKAGE+'/'+PACKAGE+'.PhoneObserver'
     current=adb('shell','settings','get','secure','enabled_accessibility_services').strip()
     enabled=[] if current in ('','null') else current.split(':')
-    adb('shell','settings','put','secure','enabled_accessibility_services',':'.join(v for v in enabled if v!=service))
+    others=':'.join(v for v in enabled if v!=service)
+    if others: adb('shell','settings','put','secure','enabled_accessibility_services',others)
+    else: adb('shell','settings','delete','secure','enabled_accessibility_services')
     time.sleep(.3)
     if service not in enabled: enabled.append(service)
     adb('shell','settings','put','secure','enabled_accessibility_services',':'.join(enabled));adb('shell','settings','put','secure','accessibility_enabled','1')
