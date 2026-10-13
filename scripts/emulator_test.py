@@ -223,8 +223,11 @@ def run():
     state,node=target('mcp_focused_input');bounds=node['bounds']
     act('tap',x=(bounds['left']+bounds['right'])//2,y=(bounds['top']+bounds['bottom'])//2)
     act('type',text='Focused_9',replace=True);text('Focused_9')
-    act('key',key='enter');text('STATUS_ENTERED:Focused_9')
+    act('key',key='enter')
+    # IME resizing can hide the fixture's status label; dismiss it before readback.
+    act('key',key='back');text('STATUS_ENTERED:Focused_9')
     passed('coordinate tap, focused input and real IME Enter postcondition')
+    fixture()
     act('key',key='back')
     for _ in range(8):
         if any('MCP_BOTTOM_MARKER' in n['text'] for n in observe()['nodes']): break
