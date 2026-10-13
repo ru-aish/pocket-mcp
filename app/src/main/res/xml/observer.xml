@@ -1,0 +1,4 @@
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+ android:description="@string/observer_description" android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+ android:accessibilityFeedbackType="feedbackGeneric" android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows"
+ android:canRetrieveWindowContent="true" android:canTakeScreenshot="true" android:canPerformGestures="true" android:notificationTimeout="100" />

@@ -1,0 +1,3 @@
+-keep class fi.iki.elonen.NanoHTTPD$* { *; }
+-keep class com.ngrok.** { *; }
+-keepclasseswithmembernames,includedescriptorclasses class * { native <methods>; }
