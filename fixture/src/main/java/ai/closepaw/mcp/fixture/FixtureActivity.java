@@ -33,9 +33,12 @@ public class FixtureActivity extends Activity {
     @Override
     public void onCreate(Bundle saved) {
         super.onCreate(saved);
+        getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN|android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         LinearLayout outer = new LinearLayout(this);
         outer.setOrientation(LinearLayout.VERTICAL);
         outer.setPadding(16, 24, 16, 16);
+        outer.setOnApplyWindowInsetsListener((view,insets)-> {android.graphics.Insets bars=insets.getInsets(android.view.WindowInsets.Type.systemBars()|android.view.WindowInsets.Type.ime());view.setPadding(16+bars.left,24+bars.top,16+bars.right,16+bars.bottom);return insets;});
+        outer.setFocusableInTouchMode(true);outer.requestFocus();
 
         outer.addView(label("MCP_TEST_FIXTURE", View.NO_ID));
         EditText input = new EditText(this);

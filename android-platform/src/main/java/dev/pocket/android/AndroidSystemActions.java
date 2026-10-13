@@ -145,6 +145,8 @@ public final class AndroidSystemActions {
         values.put(CalendarContract.Events.CALENDAR_ID,calendarId);values.put(CalendarContract.Events.TITLE,title);
         values.put(CalendarContract.Events.DTSTART,startMillis);values.put(CalendarContract.Events.DTEND,endMillis);
         values.put(CalendarContract.Events.EVENT_TIMEZONE,timezone);
+        // Match ordinary calendar editors: optional empty text fields need not be SQL NULL.
+        values.put(CalendarContract.Events.DESCRIPTION,"");values.put(CalendarContract.Events.EVENT_LOCATION,"");
         Uri uri=context.getContentResolver().insert(CalendarContract.Events.CONTENT_URI,values);
         if(uri==null) throw new ControlException(RESULT_UNKNOWN,"Provider returned no event URI; inspect before repeating");
         try(Cursor c=context.getContentResolver().query(uri,new String[]{CalendarContract.Events._ID},null,null,null)) {

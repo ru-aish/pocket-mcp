@@ -20,6 +20,10 @@ if not args.serial.startswith('emulator-'): raise SystemExit('Tests are restrict
 args.output.mkdir(parents=True,exist_ok=True)
 PACKAGE='dev.pocket.mcp';FIXTURE='dev.pocket.fixture'
 token=secrets.token_urlsafe(32)
+connection=Path.home()/'.local/state/pocket-mcp/emulator-connection.json'
+connection.parent.mkdir(parents=True,exist_ok=True,mode=0o700)
+connection.write_text(json.dumps({'url':f'http://127.0.0.1:{args.port}/mcp','bearer_token':token}))
+connection.chmod(0o600)
 checks=[];counter=0;operation_prefix=None
 
 def newop(label): return operation_prefix+"_"+label+"_"+secrets.token_hex(10)
@@ -116,9 +120,10 @@ def act(kind,resource=None,**values):
 
 def text(expected):
     for _ in range(25):
-        if any(expected in n['text'] for n in observe()['nodes']): return
+        state=observe()
+        if any(expected in n['text'] for n in state['nodes']): return
         time.sleep(.15)
-    raise AssertionError('Missing observed postcondition: '+expected)
+    raise AssertionError('Missing observed postcondition: '+expected+'; package='+state['package_name']+'; nodes='+str(len(state['nodes'])))
 
 
 def fixture():
@@ -229,7 +234,12 @@ def run():
     state,node=target('mcp_test_scroll');b=node['bounds'];x=(b['left']+b['right'])//2
     act('swipe',x=x,y=b['top']+40,end_x=x,end_y=b['bottom']-40,duration_ms=450)
     passed('real swipe gesture dispatched')
-    old=observe();adb('shell','am','start','-a','android.settings.SETTINGS');time.sleep(.4)
+    old=observe();adb('shell','am','start','-a','android.settings.SETTINGS')
+    deadline=time.monotonic()+10
+    while time.monotonic()<deadline:
+        if observe()['package_name']=='com.android.settings': break
+        time.sleep(.2)
+    else: raise AssertionError('Settings did not become the observed foreground package')
     stale=call('phone_act',kind='tap',snapshot_id=old['snapshot_id'],x=50,y=100,operation_id=newop('stale'))
     assert stale['isError'] and stale['structuredContent']['code']=='STALE_OBSERVATION',stale
     passed('stale package/window action rejected before dispatch')
