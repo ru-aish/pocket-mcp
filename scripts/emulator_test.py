@@ -36,6 +36,7 @@ def passed(name):
 
 
 def ui():
+    adb('shell','rm','-f','/data/local/tmp/pocket-test-window.xml')
     adb('shell','uiautomator','dump','/data/local/tmp/pocket-test-window.xml')
     return ET.fromstring(adb('exec-out','cat','/data/local/tmp/pocket-test-window.xml'))
 
@@ -125,6 +126,9 @@ def fixture():
 def run():
     global operation_prefix
     adb('install','-r',args.apk);adb('install','-r',args.fixture)
+    adb('shell','am','force-stop',PACKAGE);adb('shell','am','force-stop',FIXTURE)
+    for perm in ('READ_CONTACTS','CALL_PHONE','READ_PHONE_STATE','SEND_SMS','READ_CALENDAR','WRITE_CALENDAR'):
+        adb('shell','pm','revoke',PACKAGE,'android.permission.'+perm,check=False)
     for perm in ('READ_CONTACTS','WRITE_CONTACTS','READ_CALENDAR','WRITE_CALENDAR'):
         adb('shell','pm','grant',FIXTURE,'android.permission.'+perm)
     api=int(adb('shell','getprop','ro.build.version.sdk').strip())

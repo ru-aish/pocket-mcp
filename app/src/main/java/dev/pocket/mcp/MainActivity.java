@@ -25,7 +25,7 @@ public final class MainActivity extends Activity {
     private Button button(LinearLayout parent,String text,String description,Runnable work) {Button b=new Button(this);b.setText(text);b.setAllCaps(false);b.setContentDescription(description);b.setMinHeight(dp(48));parent.addView(b,new LinearLayout.LayoutParams(-1,-2));b.setOnClickListener(v->work.run());return b;}
     private EditText field(LinearLayout parent,String hint,String description,boolean secret) {EditText e=new EditText(this);e.setSingleLine(true);e.setHint(hint);e.setContentDescription(description);e.setTextSize(15);e.setInputType(InputType.TYPE_CLASS_TEXT|(secret?InputType.TYPE_TEXT_VARIATION_PASSWORD:InputType.TYPE_TEXT_VARIATION_URI));e.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);parent.addView(e,new LinearLayout.LayoutParams(-1,dp(54)));return e;}
     @Override public void onCreate(Bundle saved) {
-        super.onCreate(saved);getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);secrets=new Secrets(this);
+        super.onCreate(saved);getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN|WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);secrets=new Secrets(this);
         ScrollView scroll=new ScrollView(this);LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(dp(20),dp(12),dp(20),dp(24));body.setBackgroundColor(Color.rgb(244,248,251));scroll.addView(body);
         body.setOnApplyWindowInsetsListener((v,insets)->{android.graphics.Insets i=insets.getInsets(WindowInsets.Type.systemBars());v.setPadding(dp(20)+i.left,dp(12)+i.top,dp(20)+i.right,dp(24)+i.bottom);return insets;});
         TextView title=label(body,"Pocket MCP",28);title.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));
@@ -50,7 +50,7 @@ public final class MainActivity extends Activity {
         button(body,"Battery settings","P_BATTERY",()->startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)));
         label(body,"Local access",20);label(body,"A local connection stays on this phone. For remote access, use the public connection above.",13);
         button(body,"Start local connection","P_START_LOCAL",()->start(true));
-        label(body,"Android 12+ · v"+BuildConfig.VERSION_NAME,12);setContentView(scroll);
+        label(body,"Android 12+ · v"+BuildConfig.VERSION_NAME,12);body.setFocusableInTouchMode(true);body.requestFocus();setContentView(scroll);
     }
     private void toast(String text) {Toast.makeText(this,text,Toast.LENGTH_LONG).show();}
     private void save() {
@@ -71,7 +71,8 @@ public final class MainActivity extends Activity {
     }
     private void render() {
         org.json.JSONObject status=ServerService.status();String url=status.optString("public_url");String message=status.optString("diagnostic");
-        state.setText("Connection: "+status.optString("stage")+"\nScreen control: "+(PhoneObserver.connected==null?"not enabled":"ready")+"\nNotification access: "+(PhoneNotifications.connected==null?"not enabled":"ready")+(url.isEmpty()?"":"\n"+url)+(message.isEmpty()?"":"\n"+message));
+        String updated="Connection: "+status.optString("stage")+"\nScreen control: "+(PhoneObserver.connected==null?"not enabled":"ready")+"\nNotification access: "+(PhoneNotifications.connected==null?"not enabled":"ready")+(url.isEmpty()?"":"\n"+url)+(message.isEmpty()?"":"\n"+message);
+        if(!updated.contentEquals(state.getText())) state.setText(updated);
     }
     @Override protected void onResume() {super.onResume();refreshing=true;handler.post(refresh);}
     @Override protected void onPause() {refreshing=false;handler.removeCallbacks(refresh);super.onPause();}
