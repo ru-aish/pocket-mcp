@@ -27,7 +27,7 @@ public final class MainActivity extends Activity {
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN|WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);secrets=new Secrets(this);
         ScrollView scroll=new ScrollView(this);LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(dp(20),dp(12),dp(20),dp(24));body.setBackgroundColor(Color.rgb(244,248,251));scroll.addView(body);
-        body.setOnApplyWindowInsetsListener((v,insets)->{android.graphics.Insets i=insets.getInsets(WindowInsets.Type.systemBars());v.setPadding(dp(20)+i.left,dp(12)+i.top,dp(20)+i.right,dp(24)+i.bottom);return insets;});
+        scroll.setOnApplyWindowInsetsListener((v,insets)->{android.graphics.Insets i=insets.getInsets(WindowInsets.Type.systemBars());v.setPadding(i.left,i.top,i.right,i.bottom);return insets;});
         TextView title=label(body,"Pocket MCP",28);title.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));
         label(body,"Your phone, connected to your agent.",16);
         state=label(body,"Connection stopped",14);state.setTypeface(Typeface.MONOSPACE);state.setContentDescription("P_STATUS");state.setTextIsSelectable(true);state.setPadding(dp(12),dp(12),dp(12),dp(12));state.setBackgroundColor(Color.rgb(221,236,246));

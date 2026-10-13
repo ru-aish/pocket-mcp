@@ -51,7 +51,8 @@ def click(description,scroll=True):
                 adb('shell','input','tap',(points[0]+points[2])//2,(points[1]+points[3])//2);time.sleep(.3);return
         if not scroll: break
         dimensions=re.findall(r'(\d+)x(\d+)',adb('shell','wm','size'))[-1];w,h=map(int,dimensions)
-        adb('shell','input','swipe',w//2,int(h*.80),w//2,int(h*.30),250)
+        # Scroll in the page margin: text fields may intercept drags through their contents.
+        adb('shell','input','swipe',max(8,w//30),int(h*.80),max(8,w//30),int(h*.30),250)
     raise AssertionError('Bootstrap UI control missing: '+description)
 
 
@@ -139,6 +140,8 @@ def run():
     service=PACKAGE+'/'+PACKAGE+'.PhoneObserver'
     current=adb('shell','settings','get','secure','enabled_accessibility_services').strip()
     enabled=[] if current in ('','null') else current.split(':')
+    adb('shell','settings','put','secure','enabled_accessibility_services',':'.join(v for v in enabled if v!=service))
+    time.sleep(.3)
     if service not in enabled: enabled.append(service)
     adb('shell','settings','put','secure','enabled_accessibility_services',':'.join(enabled));adb('shell','settings','put','secure','accessibility_enabled','1')
     adb('forward','tcp:'+str(args.port),'tcp:8765')
