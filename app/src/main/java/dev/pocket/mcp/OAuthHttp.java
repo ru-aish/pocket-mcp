@@ -160,12 +160,12 @@ final class OAuthHttp {
         return value.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
             .replace("\"","&quot;").replace("'","&#39;");
     }
-    private static String encode(Map<String,String> params) {
+    private static String encode(Map<String,String> params) throws Exception {
         StringBuilder result=new StringBuilder();
         for(var entry:params.entrySet()) {
             if(result.length()>0) result.append('&');
-            result.append(URLEncoder.encode(entry.getKey(),StandardCharsets.UTF_8)).append('=')
-                .append(URLEncoder.encode(entry.getValue(),StandardCharsets.UTF_8));
+            result.append(URLEncoder.encode(entry.getKey(),"UTF-8")).append('=')
+                .append(URLEncoder.encode(entry.getValue(),"UTF-8"));
         }
         return result.toString();
     }
@@ -184,9 +184,9 @@ final class OAuthHttp {
         Map<String,String> params=new LinkedHashMap<>();
         for(String part:readBody(s).split("&")) {
             String[] pair=part.split("=",2);
-            String key=URLDecoder.decode(pair[0],StandardCharsets.UTF_8);
+            String key=URLDecoder.decode(pair[0],"UTF-8");
             if(params.containsKey(key)) throw new IllegalArgumentException("Duplicate parameter");
-            params.put(key,URLDecoder.decode(pair.length==2?pair[1]:"",StandardCharsets.UTF_8));
+            params.put(key,URLDecoder.decode(pair.length==2?pair[1]:"","UTF-8"));
         }
         return params;
     }
