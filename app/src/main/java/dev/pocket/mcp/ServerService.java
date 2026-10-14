@@ -82,11 +82,11 @@ public final class ServerService extends android.app.Service {
             if(authenticated) connection.setRequestProperty("Authorization","Bearer "+token);
             byte[] body=Json.obj("jsonrpc","2.0","id",1,"method","ping").toString().getBytes(StandardCharsets.UTF_8);connection.setFixedLengthStreamingMode(body.length);try(java.io.OutputStream out=connection.getOutputStream()) {out.write(body);}
             int code=connection.getResponseCode();
-            if(authenticated && code==200) {java.io.ByteArrayOutputStream bytes=new java.io.ByteArrayOutputStream();try(java.io.InputStream in=connection.getInputStream()) {byte[] chunk=new byte[1024];int n;while((n=in.read(chunk))!=-1) {bytes.write(chunk,0,n);if(bytes.size()>8192) return -1;}}JSONObject reply=new JSONObject(bytes.toString("UTF-8"));if(!reply.has("result") || reply.optInt("id")!=1) return -1;}
+            if(authenticated && code==200) {java.io.ByteArrayOutputStream bytes=new java.io.ByteArrayOutputStream();try(java.io.InputStream in=connection.getInputStream()) {byte[] chunk=new byte[1024];int n;while((n=in.read(chunk))!=-1) {bytes.write(chunk,0,n);if(bytes.size()>8192) return -1;}}JSONObject reply=new JSONObject(bytes.toString("UTF-8"));if(!"2.0".equals(reply.optString("jsonrpc")) || !(reply.opt("result") instanceof JSONObject) || reply.has("error") || reply.optInt("id")!=1) return -1;}
             return code;
         } finally {connection.disconnect();}
     }
-    private static boolean checkPublic(String url,String bearer) {try {return check(url,bearer,false)==401 && check(url,bearer,true)==200;}catch(Exception e) {return false;}}
+    private boolean checkPublic(String url,String bearer) {return PublicVerification.verify(authenticated->check(url,bearer,authenticated),()->stopped,attempt->Thread.sleep(attempt*1000L));}
     private Notification notification(String message) {
         PendingIntent open=PendingIntent.getActivity(this,0,new Intent(this,MainActivity.class),PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
         PendingIntent stop=PendingIntent.getService(this,1,new Intent(this,ServerService.class).setAction("STOP"),PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
