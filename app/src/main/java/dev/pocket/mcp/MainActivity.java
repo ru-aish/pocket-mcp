@@ -71,9 +71,18 @@ public final class MainActivity extends Activity {
     }
     private void render() {
         org.json.JSONObject status=ServerService.status();String url=status.optString("public_url");String message=status.optString("diagnostic");
-        String updated="Connection: "+status.optString("stage")+"\nScreen control: "+(PhoneObserver.connected==null?"not enabled":"ready")+"\nNotification access: "+(PhoneNotifications.connected==null?"not enabled":"ready")+(url.isEmpty()?"":"\n"+url)+(message.isEmpty()?"":"\n"+message);
+        boolean notificationGranted=getSystemService(android.app.NotificationManager.class).isNotificationListenerAccessGranted(new ComponentName(this,PhoneNotifications.class));
+        String notificationState=PhoneNotifications.connected!=null?"ready":notificationGranted?"enabled; reconnecting":"not enabled";
+        String updated="Connection: "+status.optString("stage")+"\nScreen control: "+(PhoneObserver.connected==null?"not enabled":"ready")+"\nNotification access: "+notificationState+(url.isEmpty()?"":"\n"+url)+(message.isEmpty()?"":"\n"+message);
         if(!updated.contentEquals(state.getText())) state.setText(updated);
     }
-    @Override protected void onResume() {super.onResume();refreshing=true;handler.post(refresh);}
+    @Override protected void onResume() {
+        super.onResume();
+        ComponentName listener=new ComponentName(this,PhoneNotifications.class);
+        if(PhoneNotifications.connected==null && getSystemService(android.app.NotificationManager.class).isNotificationListenerAccessGranted(listener)) {
+            android.service.notification.NotificationListenerService.requestRebind(listener);
+        }
+        refreshing=true;handler.post(refresh);
+    }
     @Override protected void onPause() {refreshing=false;handler.removeCallbacks(refresh);super.onPause();}
 }
