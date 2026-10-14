@@ -54,7 +54,7 @@ public final class ServerService extends android.app.Service {
             synchronized(this) {if(stopped) {connected.close();return;}session=connected;}
             stage="endpoint-forward";com.ngrok.HttpBuilder builder=connected.httpEndpoint().scheme(com.ngrok.Http.Scheme.HTTPS);String domain=secrets.read("domain");if(!domain.isEmpty()) builder.domain(domain);
             Forwarder.Endpoint forwarder=builder.forward(new URL("http://127.0.0.1:8765"));
-            synchronized(this) {if(stopped) {forwarder.close();return;}endpoint=forwarder;if(!"https".equals(new URL(forwarder.getUrl()).getProtocol())) throw new IllegalStateException("HTTPS endpoint required");publicUrl=forwarder.getUrl().replaceAll("/$","")+"/mcp";}
+            synchronized(this) {if(stopped) {forwarder.close();return;}endpoint=forwarder;if(!"https".equals(new URL(forwarder.getUrl()).getProtocol())) throw new IllegalStateException("HTTPS endpoint required");created.setPublicOrigin(forwarder.getUrl());publicUrl=forwarder.getUrl().replaceAll("/$","")+"/mcp";}
             stage="verifying-https";boolean ok=checkPublic(publicUrl,bearer);
             synchronized(this) {if(stopped) return;verified=ok;stage=ok?"online":"https-unverified";if(!ok) diagnostic="Tunnel started; HTTPS check failed. Check network/account settings and retry.";}
             update(ok?"Public HTTPS connection verified":"Tunnel active; public HTTPS unverified");
