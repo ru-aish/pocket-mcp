@@ -33,4 +33,4 @@ android {
     packaging { resources { excludes += "META-INF/DEPENDENCIES" } }
     lint { textReport=true; textOutput=file("build/reports/lint-results-release.txt") }
 }
-dependencies { implementation(project(":android-platform")); implementation("org.nanohttpd:nanohttpd:2.3.1"); implementation("com.ngrok:ngrok-java:1.1.1"); ngrokNativeClasses("com.ngrok:ngrok-java-native:1.1.1"); implementation(files(androidNgrokJar)) }
+dependencies { implementation(project(":android-platform")); implementation("org.nanohttpd:nanohttpd:2.3.1"); implementation("com.ngrok:ngrok-java:1.1.1"); ngrokNativeClasses("com.ngrok:ngrok-java-native:1.1.1"); implementation(files(androidNgrokJar)); testImplementation("junit:junit:4.13.2") }

@@ -60,7 +60,11 @@ public final class ServerService extends android.app.Service {
             update(ok?"Public HTTPS connection verified":"Tunnel active; public HTTPS unverified");
         } catch(Throwable e) {
             if(stopped) return;
+            String failedStage=stage;
+            TunnelFailure failure=TunnelFailure.from(e);
             diagnostic=switch(stage) {case "credentials" -> "Save your ngrok authtoken before starting the public connection.";case "native-load" -> "Tunnel library failed to load on this device.";case "ngrok-connect" -> "ngrok connection failed. Check your token, account limits and internet connection.";case "endpoint-forward" -> "Public endpoint could not start. Check the domain and account limits.";default -> "Connection could not start at "+stage+". Stop and try again.";};
+            diagnostic+="\nFailed at: "+failedStage+"\n"+failure.summary();
+            android.util.Log.w("PocketTunnel","stage="+failedStage+" "+failure.summary());
             stage="failed";running=false;verified=false;publicUrl="";
             new Secrets(this).enabled(false);
             new Handler(Looper.getMainLooper()).post(this::stopSelf);
