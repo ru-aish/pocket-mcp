@@ -5,7 +5,9 @@ on:
       run_id:
         description: Successful APK build run ID
         required: true
-        default: '38468387302'
+      release_tag:
+        description: Existing draft release tag matching the build commit
+        required: true
 permissions:
   actions: read
   contents: write
@@ -13,18 +15,32 @@ jobs:
   publish:
     runs-on: ubuntu-24.04
     steps:
+      - name: Verify release provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BUILD_RUN: ${{ inputs.run_id }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          [[ "$BUILD_RUN" =~ ^[0-9]+$ ]]
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test "$(gh api "repos/$GH_REPO/actions/runs/$BUILD_RUN" --jq .conclusion)" = success
+          build_sha=$(gh api "repos/$GH_REPO/actions/runs/$BUILD_RUN" --jq .head_sha)
+          tag_sha=$(gh api "repos/$GH_REPO/commits/$RELEASE_TAG" --jq .sha)
+          test "$build_sha" = "$tag_sha"
       - uses: actions/download-artifact@v4
         with:
           name: pocket-mcp-release
           path: apk
           run-id: ${{ inputs.run_id }}
           github-token: ${{ github.token }}
-      - name: Publish existing initial release
+      - name: Publish exact validated APKs
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           cd apk
           sha256sum Pocket-MCP-arm64.apk Pocket-MCP-universal.apk > SHA256SUMS.txt
-          gh release upload v0.1.0 Pocket-MCP-arm64.apk Pocket-MCP-universal.apk SHA256SUMS.txt --clobber
-          gh release edit v0.1.0 --draft=false --prerelease
+          gh release upload "$RELEASE_TAG" Pocket-MCP-arm64.apk Pocket-MCP-universal.apk SHA256SUMS.txt
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease
