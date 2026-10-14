@@ -49,7 +49,9 @@ public final class ServerService extends android.app.Service {
             stage="local-server";McpServer created=new McpServer(this,bearer);created.start(10_000,false);
             synchronized(this) {if(stopped) {created.stop();return;}server=created;running=true;}
             stage="native-load";System.loadLibrary("ngrok_java");Class.forName("com.ngrok.NativeSession");nativeLoaded=true;
-            synchronized(this) {if(stopped) return;if(local) {stage="local-only";update("Local connection active");return;}stage="ngrok-connect";}
+            synchronized(this) {if(stopped) return;if(local) {stage="local-only";update("Local connection active");return;}stage="dns-check";}
+            TunnelDns.check();
+            synchronized(this) {if(stopped) return;stage="ngrok-connect";}
             Session connected=Session.withAuthtoken(authtoken).addClientInfo("pocket-mcp",BuildConfig.VERSION_NAME).connect();
             synchronized(this) {if(stopped) {connected.close();return;}session=connected;}
             stage="endpoint-forward";com.ngrok.HttpBuilder builder=connected.httpEndpoint().scheme(com.ngrok.Http.Scheme.HTTPS);String domain=secrets.read("domain");if(!domain.isEmpty()) builder.domain(domain);
@@ -62,7 +64,8 @@ public final class ServerService extends android.app.Service {
             if(stopped) return;
             String failedStage=stage;
             TunnelFailure failure=TunnelFailure.from(e);
-            diagnostic=switch(stage) {case "credentials" -> "Save your ngrok authtoken before starting the public connection.";case "native-load" -> "Tunnel library failed to load on this device.";case "ngrok-connect" -> "ngrok connection failed. Check your token, account limits and internet connection.";case "endpoint-forward" -> "Public endpoint could not start. Check the domain and account limits.";default -> "Connection could not start at "+stage+". Stop and try again.";};
+            diagnostic=switch(stage) {case "credentials" -> "Save your ngrok authtoken before starting the public connection.";case "native-load" -> "Tunnel library failed to load on this device.";case "dns-check" -> "Cannot resolve ngrok's address. Check internet access and your VPN or DNS settings, then retry.";case "ngrok-connect" -> "ngrok connection failed. Check your token, account limits and internet connection.";case "endpoint-forward" -> "Public endpoint could not start. Check the domain and account limits.";default -> "Connection could not start at "+stage+". Stop and try again.";};
+            if(!failure.advice().isEmpty()) diagnostic=failure.advice();
             diagnostic+="\nFailed at: "+failedStage+"\n"+failure.summary();
             android.util.Log.w("PocketTunnel","stage="+failedStage+" "+failure.summary());
             stage="failed";running=false;verified=false;publicUrl="";

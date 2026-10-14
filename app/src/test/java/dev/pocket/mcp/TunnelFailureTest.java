@@ -20,4 +20,10 @@ public class TunnelFailureTest {
     @Test public void dnsHasItsOwnClassification() {
         assertEquals("dns",TunnelFailure.from(new java.net.UnknownHostException("secret-host")).kind);
     }
+    @Test public void sessionLimitHasSpecificRecoveryAdvice() {
+        assertTrue(TunnelFailure.from(new IOException("ERR_NGROK_108 secret")).advice().contains("agent-session limit"));
+    }
+    @Test public void revokedTokenHasSpecificRecoveryAdvice() {
+        assertTrue(TunnelFailure.from(new IOException("ERR_NGROK_107 secret")).advice().contains("authtoken"));
+    }
 }

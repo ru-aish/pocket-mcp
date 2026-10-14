@@ -34,4 +34,12 @@ public final class TunnelFailure {
         return new TunnelFailure(code,kind);
     }
     public String summary() {return "Diagnostic: "+kind+(code.isEmpty()?"":" · "+code+" · https://ngrok.com/docs/errors/"+code.toLowerCase(Locale.ROOT));}
+    public String advice() {
+        return switch(code) {
+            case "ERR_NGROK_105","ERR_NGROK_107" -> "ngrok rejected the authtoken. Save the authtoken from your ngrok dashboard; it is different from the MCP bearer token.";
+            case "ERR_NGROK_108" -> "Your ngrok account's agent-session limit was reached. Stop an unused ngrok agent in your account, then retry.";
+            case "ERR_NGROK_334" -> "This ngrok domain is already in use. Stop the other endpoint or choose a different reserved domain, then retry.";
+            default -> "";
+        };
+    }
 }
