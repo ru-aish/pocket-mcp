@@ -52,8 +52,13 @@ final class AgentDisplayCoordinator implements AutoCloseable {
         closing.close();
     }
     synchronized JSONObject acquire(String token) throws ControlException {
-        AgentSessions.State state=sessions.acquire(token,()->getClient().createDisplay());
-        return state(state,true);
+        try {
+            AgentSessions.State state=sessions.acquire(token,()->getClient().createDisplay());
+            return state(state,true);
+        } catch(ControlException | RuntimeException e) {
+            shutDownIfIdle();
+            throw e;
+        }
     }
     synchronized JSONObject release(String token) throws ControlException {
         AgentSessions.State result=sessions.release(token);

@@ -7,11 +7,13 @@ import android.content.pm.PackageManager;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.SystemClock;
+import android.util.Log;
 import dev.pocket.control.ControlException;
 import rikka.shizuku.Shizuku;
 
 /** Single Shizuku session shared by all agent-owned virtual displays. */
 final class ShizukuDisplayClient implements AutoCloseable {
+    private static final String TAG="PocketDisplayShizuku";
     private final Shizuku.UserServiceArgs args;
     private final Object readyLock=new Object();
     private final Runnable disconnected;
@@ -20,10 +22,15 @@ final class ShizukuDisplayClient implements AutoCloseable {
     private volatile boolean closed;
     private final ServiceConnection connection=new ServiceConnection() {
         @Override public void onServiceConnected(ComponentName name,IBinder binder) {
+            if(closed) {
+                try {Shizuku.unbindUserService(args,connection,true);}catch(Exception ignored){}
+                return;
+            }
             IDisplayShell shell=IDisplayShell.Stub.asInterface(binder);
             try {binder.linkToDeath(ShizukuDisplayClient.this::loseService,0);}
             catch(RemoteException e) {loseService();return;}
             remote=shell;binding=false;
+            Log.i(TAG,"Shizuku UserService connected");
             synchronized(readyLock) {readyLock.notifyAll();}
         }
         @Override public void onServiceDisconnected(ComponentName name) {loseService();}
@@ -39,6 +46,7 @@ final class ShizukuDisplayClient implements AutoCloseable {
         Shizuku.addBinderDeadListener(died);
     }
     private void loseService() {
+        Log.w(TAG,"Shizuku UserService disconnected");
         remote=null;binding=false;
         synchronized(readyLock) {readyLock.notifyAll();}
         if(!closed) disconnected.run();
@@ -64,8 +72,12 @@ final class ShizukuDisplayClient implements AutoCloseable {
         try {
             if(Shizuku.checkSelfPermission()!=PackageManager.PERMISSION_GRANTED) return;
             binding=true;
+            Log.i(TAG,"Shizuku UserService bind requested");
             Shizuku.bindUserService(args,connection);
-        } catch(Exception e) {binding=false;}
+        } catch(Exception e) {
+            binding=false;
+            Log.e(TAG,"Shizuku UserService binding call failed",e);
+        }
     }
     private IDisplayShell require() throws ControlException {
         if(!"ready".equals(status())) {
@@ -82,6 +94,7 @@ final class ShizukuDisplayClient implements AutoCloseable {
                 }
             }
         }
+        if(!"ready".equals(status())) Log.w(TAG,"Shizuku bind did not reach ready state: "+status());
         if(!"ready".equals(status())) throw new ControlException(ControlException.Code.NOT_READY,
             "Virtual display backend "+status()+"; start Shizuku and authorize Pocket MCP in its UI");
         return remote;

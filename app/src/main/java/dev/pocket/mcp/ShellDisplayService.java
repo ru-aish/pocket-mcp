@@ -37,8 +37,8 @@ public final class ShellDisplayService extends IDisplayShell.Stub {
         void close() {try {display.release();}finally {reader.close();}}
     }
 
-    public ShellDisplayService() {this.context=null;}
-    public ShellDisplayService(Context context) {this.context=context;}
+    public ShellDisplayService() {this.context=null;android.util.Log.i("PocketDisplayShizuku","Shizuku UserService no-context constructor uid="+Process.myUid());}
+    public ShellDisplayService(Context context) {this.context=context;android.util.Log.i("PocketDisplayShizuku","Shizuku UserService context constructor uid="+Process.myUid());}
 
     private Context asShell() {
         if(context==null) throw new IllegalStateException("Shizuku v13 Context required");
