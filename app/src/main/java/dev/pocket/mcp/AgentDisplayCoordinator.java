@@ -56,7 +56,8 @@ final class AgentDisplayCoordinator implements AutoCloseable {
             AgentSessions.State state=sessions.acquire(token,()->getClient().createDisplay());
             return state(state,true);
         } catch(ControlException | RuntimeException e) {
-            shutDownIfIdle();
+            ShizukuDisplayClient present=client;
+            if(present!=null && !"binding".equals(present.status())) shutDownIfIdle();
             throw e;
         }
     }

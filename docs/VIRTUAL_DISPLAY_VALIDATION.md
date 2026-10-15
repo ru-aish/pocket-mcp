@@ -61,3 +61,18 @@ The emulator evidence **does not** establish behavior on a Redmi/HyperOS physica
 5. Preserve the generated JSON reports and check `adb -s emulator-5580 shell cmd display get-displays -i` reports only display 0 after cleanup.
 
 All scripts hard-code or validate an `emulator-` serial and never target the physical USB device.
+
+
+## USB-connected Redmi K50i physical-device probe (2026-10-15)
+
+The follow-up hardware test **does not pass**. This is separate from the signed-emulator results above.
+
+- Device: Redmi K50i (model `22041216I`), Android 14 / API 34, MediaTek `mt6895`, USB-debugged on Fedora. Tested with the new signed APK from GitHub Actions run [38782875747](https://github.com/ru-aish/pocket-mcp/actions/runs/38782875747) containing commit `4e6c47d`.
+- Installed Shizuku manager: `13.6.0.r1086.2650830c`. Shizuku shell server is running, Pocket MCP's `API_V23` permission was granted, accessibility works, and authenticated HTTPS MCP requests return HTTP 200.
+- A direct MCP probe from Fedora created three native-only sessions and attempted to acquire a UI lease. Every UI acquisition returned `NOT_READY` (`binding`); session cleanup succeeded and `phone_displays` contained **only physical display 0** afterward.
+- Pocket MCP log showed `Shizuku UserService bind requested` but never `Shizuku UserService connected`. Shizuku shell-server logs showed `New service record dev.pocket.mcp:pocket-agent-displays` followed by `Starting process`, then `Service record ... is not started in 30000 ms`. No user service process or virtual display became available.
+- This strongly resembles a **known Shizuku UserService startup issue on some MediaTek/Xiaomi devices**, documented in [RikkaApps/Shizuku-API PR #299](https://github.com/RikkaApps/Shizuku-API/pull/299). That PR describes a failure before client service instantiation when the Shizuku server constructs an Application context. The exact internal exception on this device has **not** been captured, so the upstream bug is a likely explanation, not a proven stack-trace match.
+- The client-side retry fix prevents permanently caching the stuck binding. The subsequent adjustment avoids repeatedly spawning new Shizuku services during a single 30-second provider startup attempt; it returns a specific error after the provider deadline. This does **not** repair the vendor-side service startup bug.
+- No other apps, user accounts, private content, or settings were modified for the probe. Installing the updated Pocket MCP APK was done in-place with `adb install -r`. Physical screen activity was not used for virtual-agent interactions. Any change to the privileged Shizuku manager/fork requires separate user approval.
+
+The emulator results must not be described as physical-device support; the physical-device Shizuku UserService compatibility blocker remains open.
