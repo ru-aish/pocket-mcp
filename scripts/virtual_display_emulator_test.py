@@ -268,12 +268,19 @@ finally:
         except Exception:pass
     try:
         result["after_cleanup"]=call("phone_displays")
+        check("cleanup leaves only the human physical display",
+            len(result["after_cleanup"]["displays"])==1 and result["after_cleanup"]["displays"][0]["display_id"]==0,
+            result["after_cleanup"])
         benchmark("cleanup")
         time.sleep(.8)
-        result["idle_shizuku_user_process"]=adb("shell","pidof","dev.pocket.mcp:display").strip()
-        check("idle Shizuku user-service process is released",not result["idle_shizuku_user_process"],result["idle_shizuku_user_process"])
+        proc=subprocess.run(["adb","-s",args.serial,"shell","pidof","dev.pocket.mcp:display"],
+            capture_output=True,text=True,timeout=20)
+        result["idle_shizuku_user_process"]=proc.stdout.strip()
+        check("idle Shizuku user-service process is released",not result["idle_shizuku_user_process"],
+            result["idle_shizuku_user_process"])
     except Exception as e:
         result["cleanup_error"]=str(e)[:300]
+        result["passed"]=False
     result["finished"]=int(time.time())
     args.output.parent.mkdir(parents=True,exist_ok=True)
     args.output.write_text(json.dumps(result,indent=2)+"\n")
