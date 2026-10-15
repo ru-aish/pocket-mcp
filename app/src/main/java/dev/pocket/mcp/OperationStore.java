@@ -49,10 +49,11 @@ final class OperationStore extends SQLiteOpenHelper {
         if(value instanceof JSONArray a) {StringBuilder out=new StringBuilder("[");for(int i=0;i<a.length();i++) {if(i>0) out.append(',');out.append(canonical(a.get(i)));}return out.append(']').toString();}
         return value instanceof String s?JSONObject.quote(s):String.valueOf(value);
     }
-    synchronized JSONObject execute(String id,String tool,JSONObject args,Work work) throws Exception {
+    JSONObject execute(String id,String tool,JSONObject args,Work work) throws Exception {
         if(id==null || !id.matches("[A-Za-z0-9_-]{8,80}")) return Json.failure("INVALID_ARGUMENT","operation_id must be a unique 8..80 character identifier");
         byte[] digest=MessageDigest.getInstance("SHA-256").digest((tool+":"+canonical(args)).getBytes(StandardCharsets.UTF_8));
         StringBuilder hash=new StringBuilder();for(byte b:digest) hash.append(String.format("%02x",b&255));
+        synchronized(this) {
         SQLiteDatabase db=getWritableDatabase();
         try(Cursor c=db.query("operations",new String[]{"fingerprint","result"},"id=?",new String[]{id},null,null,null)) {
             if(c.moveToFirst()) {
@@ -72,13 +73,16 @@ final class OperationStore extends SQLiteOpenHelper {
         try(Cursor c=db.rawQuery("SELECT count(*) FROM operations",null)) {c.moveToFirst();if(c.getInt(0)>=LIMIT) return Json.failure("LEDGER_FULL","Retry history is full; wait for old operation windows to expire. No action dispatched.");}
         ContentValues values=new ContentValues();values.put("id",id);values.put("fingerprint",hash.toString());values.put("created",System.currentTimeMillis());values.put("epoch",issued);
         db.insertOrThrow("operations",null,values);
+        } // Durable reservation completed; independent agents may now dispatch concurrently.
         JSONObject result;
         try {result=work.run();}
         catch(dev.pocket.control.ControlException e) {result=Json.failure(e.code.name(),e.getMessage());}
         catch(SecurityException e) {result=Json.failure("PERMISSION_REQUIRED","Android denied the operation; inspect before repeating");}
         catch(Exception e) {result=Json.failure("RESULT_UNKNOWN","Dispatch outcome unavailable; inspect before repeating");}
-        ContentValues done=new ContentValues();done.put("result",result.toString());
-        if(db.update("operations",done,"id=?",new String[]{id})!=1) throw new IllegalStateException("Ledger result write failed");
+        synchronized(this) {
+            ContentValues done=new ContentValues();done.put("result",result.toString());
+            if(getWritableDatabase().update("operations",done,"id=?",new String[]{id})!=1) throw new IllegalStateException("Ledger result write failed");
+        }
         return result;
     }
     synchronized JSONObject inspect(String id) throws Exception {

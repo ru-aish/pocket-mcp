@@ -17,7 +17,7 @@
   },
   {
     "name": "phone_observe",
-    "description": "Observe screen nodes and optional screenshot. Coordinates use full device dimensions; resized images need scaling. Screenshot is omitted by default. Get a fresh snapshot before every action.",
+    "description": "Observe screen nodes and optional screenshot. Coordinates use full device dimensions; resized images need scaling. Screenshot is omitted by default. Get a fresh snapshot before every action. When agent sessions exist, session_id is required. No fallback to physical display.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -33,6 +33,12 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 500
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 32,
+          "maxLength": 32,
+          "description": "Opaque ID from phone_agent_create"
         }
       },
       "required": [],
@@ -47,7 +53,7 @@
   },
   {
     "name": "phone_act",
-    "description": "Perform an Android screen action using a recent snapshot_id. Prefer exact unique semantic selectors for click/type/scroll. Enter uses real IME action. Input acceptance is not task completion. Reuse operation_id and identical arguments after network loss. operation_id must be phone_capabilities.operation_prefix + underscore + a unique 8..48 character nonce; reuse identical IDs and arguments after uncertain results.",
+    "description": "Perform an Android screen action using a recent snapshot_id. Prefer exact unique semantic selectors for click/type/scroll. Enter uses real IME action. Input acceptance is not task completion. Reuse operation_id and identical arguments after network loss. operation_id must be phone_capabilities.operation_prefix + underscore + a unique 8..48 character nonce; reuse identical IDs and arguments after uncertain results. When agent sessions exist, session_id is required. No fallback to physical display.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -153,6 +159,12 @@
           "minLength": 8,
           "maxLength": 80,
           "description": "Current operation_prefix from phone_capabilities, an underscore, then a unique nonce. Bound to this installation and retry window."
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 32,
+          "maxLength": 32,
+          "description": "Opaque ID from phone_agent_create"
         }
       },
       "required": [
@@ -187,7 +199,7 @@
   },
   {
     "name": "phone_open_app",
-    "description": "Request app launch. Verify foreground package afterward: OEM background restrictions can reject a launch silently. operation_id must be phone_capabilities.operation_prefix + underscore + a unique 8..48 character nonce; reuse identical IDs and arguments after uncertain results.",
+    "description": "Request app launch. Verify foreground package afterward: OEM background restrictions can reject a launch silently. operation_id must be phone_capabilities.operation_prefix + underscore + a unique 8..48 character nonce; reuse identical IDs and arguments after uncertain results. When agent sessions exist, session_id is required. No fallback to physical display.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -201,6 +213,12 @@
           "minLength": 8,
           "maxLength": 80,
           "description": "Current operation_prefix from phone_capabilities, an underscore, then a unique nonce. Bound to this installation and retry window."
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 32,
+          "maxLength": 32,
+          "description": "Opaque ID from phone_agent_create"
         }
       },
       "required": [
@@ -608,6 +626,184 @@
       "required": [
         "operation_id"
       ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "phone_agent_create",
+    "description": "Create an opaque agent session with no virtual screen.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "operation_id": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 80,
+          "description": "Current operation_prefix from phone_capabilities, an underscore, then a unique nonce. Bound to this installation and retry window."
+        }
+      },
+      "required": [
+        "operation_id"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "phone_agent_acquire_ui",
+    "description": "Atomically allocate a trusted virtual screen via Shizuku for the agent session. Never allocates display 0.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "operation_id": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 80,
+          "description": "Current operation_prefix from phone_capabilities, an underscore, then a unique nonce. Bound to this installation and retry window."
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 32,
+          "maxLength": 32,
+          "description": "Opaque ID from phone_agent_create"
+        }
+      },
+      "required": [
+        "operation_id",
+        "session_id"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "phone_agent_release_ui",
+    "description": "Release only the agent's leased display, retaining its native-only session.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "operation_id": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 80,
+          "description": "Current operation_prefix from phone_capabilities, an underscore, then a unique nonce. Bound to this installation and retry window."
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 32,
+          "maxLength": 32,
+          "description": "Opaque ID from phone_agent_create"
+        }
+      },
+      "required": [
+        "operation_id",
+        "session_id"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "phone_agent_close",
+    "description": "Close agent session, clean up display resources.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "operation_id": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 80,
+          "description": "Current operation_prefix from phone_capabilities, an underscore, then a unique nonce. Bound to this installation and retry window."
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 32,
+          "maxLength": 32,
+          "description": "Opaque ID from phone_agent_create"
+        }
+      },
+      "required": [
+        "operation_id",
+        "session_id"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "phone_agent_status",
+    "description": "Return session and its lease, if any.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string",
+          "minLength": 32,
+          "maxLength": 32,
+          "description": "Opaque ID from phone_agent_create"
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "phone_agent_list",
+    "description": "List anonymized sessions and backend readiness.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "phone_displays",
+    "description": "List the reserved physical screen and active virtual leases only.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
       "additionalProperties": false
     },
     "annotations": {

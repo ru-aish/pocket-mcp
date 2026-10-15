@@ -13,7 +13,7 @@ for name in sys.argv[1:]:
         else: assert 'lib/x86_64/libngrok_java.so' in files
         assert not any('codex-computer-use' in n for n in files)
         tools=json.loads(z.read('assets/tools.json'))
-        assert len(tools)==16
+        assert len(tools)==23
         assert all(t['inputSchema']['additionalProperties'] is False for t in tools)
     reports.append({'file':p.name,'bytes':p.stat().st_size,'mcp_tools':len(tools)})
 Path('artifacts/apk-structure.json').write_text(json.dumps(reports,indent=2)+'\n')

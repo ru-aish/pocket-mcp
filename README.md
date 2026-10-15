@@ -33,6 +33,21 @@ Inspect `phone_capabilities` first. Its permission flags and live service state 
 
 WhatsApp and other consumer apps may expose a current notification reply action; the app does not claim a universal arbitrary-recipient messaging API. Otherwise the external agent uses Android screen fallback. A launch request is **requested**, not a verified foreground transition.
 
+## Three-agent virtual displays (experimental)
+
+On Android 12+, Pocket MCP can allocate up to **three separate headless virtual displays** for independent UI agents without root. Native Android actions (contacts, calendar, SMS, etc.) use **zero** display leases; creating a session also allocates no display. Agent UI displays are created only when `phone_agent_acquire_ui` is called and destroyed on release, timeout, session close or server stop. The physical display (`display_id=0`) is never allocated to a virtual agent.
+
+1. Install and start [Shizuku](https://shizuku.rikka.app/) using its supported wireless debugging method or ADB on the Android device. Shizuku must be running; in ADB mode it generally needs restarting after a device reboot. No PC is required during normal use after initial Shizuku startup.
+2. In Pocket MCP, tap **Enable Shizuku virtual displays**, then explicitly allow Pocket MCP access in the Shizuku authorization screen. Enable Pocket MCP accessibility separately.
+3. Connect an MCP client and call `phone_agent_create` (with an operation ID) to obtain a private `session_id`. When the task needs a screen, call `phone_agent_acquire_ui`; use that session ID with `phone_open_app`, `phone_observe` and `phone_act`. The client must keep each agent's session ID private.
+4. Call `phone_agent_release_ui` when visual work is finished (native tools can continue), then `phone_agent_close`. `phone_agent_list` and `phone_displays` report available capacity and Shizuku readiness without allocating a screen.
+
+The fourth simultaneous UI agent is rejected rather than redirected to the physical screen. Ordinary legacy tools without session IDs continue to use the physical screen only when **no agent sessions exist**, for backwards compatibility. Agent sessions expire if inactive (with a limit of 128 active session records), and UI displays have a shorter idle timeout. The virtual display service binds lazily and unbinds when the last UI lease closes, reducing idle overhead.
+
+**Limitations:** Headless display success depends on Android version, OEM policy, and each app's support for multi-display activities. Different displays share Android user accounts, cookies, app data, and cloud resources; they do not isolate data writes or user identities. Virtual keyboard focus, deep Doze, locked-keyguard behavior and restricted apps may vary. This does not unlock a secure phone or bypass FLAG_SECURE; a phone with a secure lock can reject virtual UI actions. A screen-panel-off emulator pass does **not** guarantee long-lived operation on Redmi/HyperOS or under deep sleep. Test those separately. Screen captures are on-demand and Android may rate-limit rapid screenshot requests.
+
+See [complete edge-case and acceptance checklist](docs/VIRTUAL_DISPLAY_EDGE_CASES.md) and the emulator validation script `scripts/virtual_display_emulator_test.py`.
+
 ## Screen control
 
 `phone_observe` returns the active package/window, full device dimensions, a bounded accessibility tree and an optional resized JPEG. It captures no image for tree-only requests. `phone_act` supports tap, native click/long-click, gesture long press/swipe, native scroll/text and Home/Back/Recents/real IME Enter.

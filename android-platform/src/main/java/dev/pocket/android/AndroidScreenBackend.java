@@ -5,6 +5,10 @@ import android.accessibilityservice.GestureDescription;
 import android.app.KeyguardManager;
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.Point;
+import android.hardware.display.DisplayManager;
+import android.util.SparseArray;
+import android.view.accessibility.AccessibilityWindowInfo;
 import android.graphics.Path;
 import android.graphics.Rect;
 import android.os.Bundle;
@@ -32,11 +36,13 @@ import static dev.pocket.control.ControlException.Code.*;
 /** Fresh Android-only driver. Invoke public methods on a worker, never the main thread. */
 public final class AndroidScreenBackend implements ControlBackend {
     private final AccessibilityService service;
+    private final int displayId;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Map<String, Observation> snapshots = new LinkedHashMap<>();
     private static final long MAX_SNAPSHOT_AGE_MS = 15_000;
 
-    public AndroidScreenBackend(AccessibilityService service) { this.service = service; }
+    public AndroidScreenBackend(AccessibilityService service) {this(service,Display.DEFAULT_DISPLAY);}
+    public AndroidScreenBackend(AccessibilityService service,int displayId) {if(displayId<0) throw new IllegalArgumentException("displayId");this.service=service;this.displayId=displayId;}
 
     private <T> T onMain(Callable<T> action) throws ControlException {
         if (Looper.myLooper() == Looper.getMainLooper()) {
@@ -68,17 +74,33 @@ public final class AndroidScreenBackend implements ControlBackend {
     }
 
     private boolean interactive() {
+        if(displayId!=Display.DEFAULT_DISPLAY) return service.getSystemService(DisplayManager.class).getDisplay(displayId)!=null;
         return ((PowerManager) service.getSystemService(Context.POWER_SERVICE)).isInteractive();
     }
     private boolean locked() {
         return ((KeyguardManager) service.getSystemService(Context.KEYGUARD_SERVICE)).isKeyguardLocked();
     }
     private Rect dimensions() {
-        return ((WindowManager) service.getSystemService(Context.WINDOW_SERVICE)).getMaximumWindowMetrics().getBounds();
+        if(displayId==Display.DEFAULT_DISPLAY) return ((WindowManager) service.getSystemService(Context.WINDOW_SERVICE)).getMaximumWindowMetrics().getBounds();
+        Display display=service.getSystemService(DisplayManager.class).getDisplay(displayId);
+        if(display==null) return new Rect();
+        Point size=new Point();display.getRealSize(size);return new Rect(0,0,size.x,size.y);
     }
     private AccessibilityNodeInfo freshRoot() {
-        if (android.os.Build.VERSION.SDK_INT>=33) service.clearCache();
-        AccessibilityNodeInfo root=service.getRootInActiveWindow();
+        if(android.os.Build.VERSION.SDK_INT>=33) service.clearCache();
+        AccessibilityNodeInfo root=null;
+        if(displayId==Display.DEFAULT_DISPLAY) root=service.getRootInActiveWindow();
+        else {
+            SparseArray<List<AccessibilityWindowInfo>> all=service.getWindowsOnAllDisplays();
+            List<AccessibilityWindowInfo> windows=all==null?null:all.get(displayId);
+            if(windows!=null) {
+                for(AccessibilityWindowInfo window:windows) {
+                    if(window.getType()!=AccessibilityWindowInfo.TYPE_APPLICATION) continue;
+                    AccessibilityNodeInfo candidate=window.getRoot();
+                    if(candidate!=null) {root=candidate;break;}
+                }
+            }
+        }
         if(root!=null && android.os.Build.VERSION.SDK_INT<33 && !root.refresh()) {root.recycle();return null;}
         return root;
     }
@@ -143,7 +165,7 @@ public final class AndroidScreenBackend implements ControlBackend {
     private Capture screenshot(int maxDimension) throws ControlException {
         CompletableFuture<Capture> future = new CompletableFuture<>();
         onMain(() -> {
-            service.takeScreenshot(Display.DEFAULT_DISPLAY, service.getMainExecutor(), new AccessibilityService.TakeScreenshotCallback() {
+            service.takeScreenshot(displayId, service.getMainExecutor(), new AccessibilityService.TakeScreenshotCallback() {
                 @Override public void onSuccess(AccessibilityService.ScreenshotResult screenshot) {
                     Bitmap hardware = null, software = null, scaled = null;
                     try {
@@ -185,7 +207,7 @@ public final class AndroidScreenBackend implements ControlBackend {
         } finally { root.recycle(); }
     }
 
-    @Override public synchronized Result execute(Action a) throws ControlException {
+    public synchronized void validateAction(Action a) throws ControlException {
         if (a == null || a.kind() == null) throw new ControlException(INVALID_ARGUMENT,"Action kind required");
         Observation observed = snapshots.get(a.snapshotId());
         if (observed == null || System.currentTimeMillis()-observed.capturedAtMs()>MAX_SNAPSHOT_AGE_MS) {
@@ -196,6 +218,10 @@ public final class AndroidScreenBackend implements ControlBackend {
             if (locked()) throw new ControlException(LOCKED,"Unlock the device before controlling apps");
             validateContext(observed); return null;
         });
+    }
+    @Override public synchronized Result execute(Action a) throws ControlException {
+        validateAction(a);
+        Observation observed=snapshots.get(a.snapshotId());
         if (a.kind()==Kind.TAP || a.kind()==Kind.LONG_PRESS || a.kind()==Kind.SWIPE) {
             point(a.x(),a.y(),observed);
             if (a.kind()==Kind.SWIPE) point(a.endX(),a.endY(),observed);
@@ -220,7 +246,7 @@ public final class AndroidScreenBackend implements ControlBackend {
             validateContext(expected);
             Path path = new Path(); path.moveTo(a.x(),a.y());
             if (a.kind()==Kind.SWIPE) path.lineTo(a.endX(),a.endY());
-            GestureDescription g = new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription(path,0,duration)).build();
+            GestureDescription g = new GestureDescription.Builder().setDisplayId(displayId).addStroke(new GestureDescription.StrokeDescription(path,0,duration)).build();
             boolean dispatched = service.dispatchGesture(g,new AccessibilityService.GestureResultCallback() {
                 @Override public void onCompleted(GestureDescription ignored) { future.complete(new Result("dispatched","Gesture completed; task outcome not yet verified")); }
                 @Override public void onCancelled(GestureDescription ignored) { future.completeExceptionally(new ControlException(RESULT_UNKNOWN,"Gesture cancelled; observe before repeating")); }
@@ -233,6 +259,7 @@ public final class AndroidScreenBackend implements ControlBackend {
 
     private Result nativeAction(Action a) throws ControlException {
         if (a.kind()==Kind.KEY && !"enter".equals(a.key())) {
+            if(displayId!=Display.DEFAULT_DISPLAY) throw new ControlException(UNSUPPORTED,"Use display-targeted key injection for virtual displays");
             int key = switch (a.key()==null ? "" : a.key()) {
                 case "home" -> AccessibilityService.GLOBAL_ACTION_HOME;
                 case "back" -> AccessibilityService.GLOBAL_ACTION_BACK;

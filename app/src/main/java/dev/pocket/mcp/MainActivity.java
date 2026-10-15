@@ -43,6 +43,19 @@ public final class MainActivity extends Activity {
         label(body,"Phone access",20);
         label(body,"Enable only the permissions your agent needs. Screen control requires accessibility; notification replies and media controls require notification access.",14);
         button(body,"Enable screen control","P_ACCESSIBILITY",()->startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
+        button(body,"Enable Shizuku virtual displays","P_SHIZUKU",()->{
+            try {
+                if(rikka.shizuku.Shizuku.pingBinder()) {
+                    if(rikka.shizuku.Shizuku.checkSelfPermission()!=PackageManager.PERMISSION_GRANTED)
+                        rikka.shizuku.Shizuku.requestPermission(1001);
+                    else toast("Shizuku permission granted. The virtual display backend can now connect.");
+                } else {
+                    Intent open=getPackageManager().getLaunchIntentForPackage("moe.shizuku.privileged.api");
+                    if(open!=null) startActivity(open);
+                    else toast("Install and start Shizuku first, then return here.");
+                }
+            } catch(Exception e) {toast("Start Shizuku and authorize Pocket MCP first.");}
+        });
         button(body,"Enable notification access","P_NOTIFICATIONS",()->startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
         button(body,"Allow contacts and calls","P_CALL_PERMISSIONS",()->requestPermissions(new String[]{Manifest.permission.READ_CONTACTS,Manifest.permission.CALL_PHONE,Manifest.permission.READ_PHONE_STATE},1));
         button(body,"Allow calendar access","P_CALENDAR_PERMISSIONS",()->requestPermissions(new String[]{Manifest.permission.READ_CALENDAR,Manifest.permission.WRITE_CALENDAR},2));
