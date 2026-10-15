@@ -63,9 +63,9 @@ The emulator evidence **does not** establish behavior on a Redmi/HyperOS physica
 All scripts hard-code or validate an `emulator-` serial and never target the physical USB device.
 
 
-## USB-connected Redmi K50i physical-device probe (2026-10-15)
+## USB-connected Redmi K50i, original Shizuku 13.6.0 (2026-10-15)
 
-The follow-up hardware test **does not pass**. This is separate from the signed-emulator results above.
+The initial hardware test with official Shizuku **did not pass**. This is separate from the signed-emulator results above. See the successful fork retest below.
 
 - Device: Redmi K50i (model `22041216I`), Android 14 / API 34, MediaTek `mt6895`, USB-debugged on Fedora. Tested with the new signed APK from GitHub Actions run [38782875747](https://github.com/ru-aish/pocket-mcp/actions/runs/38782875747) containing commit `4e6c47d`.
 - Installed Shizuku manager: `13.6.0.r1086.2650830c`. Shizuku shell server is running, Pocket MCP's `API_V23` permission was granted, accessibility works, and authenticated HTTPS MCP requests return HTTP 200.
@@ -75,4 +75,15 @@ The follow-up hardware test **does not pass**. This is separate from the signed-
 - The client-side retry fix prevents permanently caching the stuck binding. The subsequent adjustment avoids repeatedly spawning new Shizuku services during a single 30-second provider startup attempt; it returns a specific error after the provider deadline. This does **not** repair the vendor-side service startup bug.
 - No other apps, user accounts, private content, or settings were modified for the probe. Installing the updated Pocket MCP APK was done in-place with `adb install -r`. Physical screen activity was not used for virtual-agent interactions. Any change to the privileged Shizuku manager/fork requires separate user approval.
 
-The emulator results must not be described as physical-device support; the physical-device Shizuku UserService compatibility blocker remains open.
+The initial Shizuku 13.6.0 compatibility blocker was subsequently resolved by an alternate Shizuku fork, described below.
+
+
+## USB-connected Redmi K50i: Shizuku fork retest (2026-10-16)
+
+**Passed for three simultaneous virtual displays, app-specific observation, and physical display isolation.** The user installed and started the **thedjchi Shizuku 13.7.0 fork** in place of official Shizuku 13.6.0. Fedora confirmed `versionName=13.7.0-thedjchi` and a running `shizuku_server` shell process. Pocket MCP authenticated successfully over the user's existing HTTPS MCP tunnel, with backend changing from `idle` to `ready` after the first bind.
+
+On the signed Pocket MCP APK from CI [38785279963](https://github.com/ru-aish/pocket-mcp/actions/runs/38785279963), the direct remote test created three native-only sessions, allocated three distinct displays (IDs **8, 9 and 10** on the final run), and launched Calculator (`com.miui.calculator`), Clock (`com.android.deskclock`) and Settings (`com.android.settings`) on their separate leased displays. All three display-specific `phone_observe` responses returned the expected package and distinct accessibility window IDs (**881, 883, 886**). The exact `Display #0 (activities from top to bottom)` section of `dumpsys activity activities` showed **ChatGPT remained the resumed physical-display activity before, during, and after all virtual app launches**. All virtual leases were released, sessions closed, and `phone_displays` returned only physical display 0 after cleanup.
+
+A preliminary test falsely suspected physical-screen interference because its diagnostic selected the first globally displayed `topResumedActivity` without constraining it to `Display #0`. Virtual activities can appear first in this global scan. The user also confirmed their independent authorization testing launched Clock on the physical phone. The corrected Display-0-scoped test established physical-screen isolation for these three apps.
+
+The optional test-fixture APK installation was rejected by the device with `INSTALL_FAILED_USER_RESTRICTED`; the restriction was respected, and existing harmless apps were used instead. This test **does not validate** independent editing of three same-app windows on the physical phone, secured lock screen, deep Doze/panel-off long duration, all third-party apps, or continued functionality after a reboot. The fork is **third-party**, so Shizuku trust/security decisions remain with the user. The successful physical-device result does not transfer automatically to official Shizuku versions.
