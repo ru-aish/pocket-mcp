@@ -39,7 +39,7 @@ final class AgentDisplayCoordinator implements AutoCloseable {
         if(includeToken) try {result.put("session_id",state.token());}catch(Exception e){throw new IllegalStateException(e);}
         return result;
     }
-    JSONObject create() {return state(sessions.create(),true);}
+    JSONObject create() throws ControlException {return state(sessions.create(),true);}
     private synchronized ShizukuDisplayClient getClient() {
         if(client==null) client=new ShizukuDisplayClient(context,sessions::invalidateDisplays);
         return client;

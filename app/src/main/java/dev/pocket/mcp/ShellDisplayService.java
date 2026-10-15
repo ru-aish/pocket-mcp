@@ -87,6 +87,7 @@ public final class ShellDisplayService extends IDisplayShell.Stub {
             }
         } catch(Exception e) {last=e;}
         reader.close();
+        if(displays.isEmpty() && frameThread!=null) {frameThread.quitSafely();frameThread=null;}
         throw new IllegalStateException("Trusted virtual display unavailable: "+(last==null?"unknown":last.getClass().getSimpleName()),last);
     }
     private void owned(int id) {

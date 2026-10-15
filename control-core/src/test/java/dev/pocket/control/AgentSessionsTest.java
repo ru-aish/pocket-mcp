@@ -54,6 +54,22 @@ public class AgentSessionsTest {
         assertTrue(r.active.isEmpty());
         assertTrue(r.sessions.acquire(first,r::create).displayId()>0);
     }
+    @Test public void rejectedDuplicateDisplayDoesNotDestroyOriginalLease() throws Exception {
+        Rig r=new Rig();
+        String a=r.sessions.create().token(),b=r.sessions.create().token();
+        int original=r.sessions.acquire(a,r::create).displayId();
+        assertThrows(ControlException.class,()->r.sessions.acquire(b,()->original));
+        assertTrue(r.active.contains(original));
+        assertEquals(original,r.sessions.checkedDisplay(a));
+        assertEquals(-1,r.sessions.status(b).displayId());
+    }
+    @Test public void sessionCreationIsBoundedAndReclaimsExpiredEntries() throws Exception {
+        Rig r=new Rig();
+        for(int i=0;i<AgentSessions.MAX_SESSIONS;i++) r.sessions.create();
+        assertThrows(ControlException.class,()->r.sessions.create());
+        r.now+=AgentSessions.SESSION_IDLE_MILLIS+1;
+        assertNotNull(r.sessions.create().token());
+    }
     @Test public void failedCreateLeavesNoLease() throws Exception {
         Rig r=new Rig();String token=r.sessions.create().token();
         assertThrows(ControlException.class,()->r.sessions.acquire(token,()->{throw new ControlException(ControlException.Code.NOT_READY,"shizuku disconnected");}));

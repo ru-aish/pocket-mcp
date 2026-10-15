@@ -10,6 +10,7 @@ import java.util.Map;
 /** Session ownership is checked inside the service, never inferred from MCP client names. */
 public final class AgentSessions {
     public static final int MAX_DISPLAYS = 3;
+    public static final int MAX_SESSIONS = 128;
     public static final long SESSION_IDLE_MILLIS = 30 * 60 * 1000L;
     public static final long UI_IDLE_MILLIS = 10 * 60 * 1000L;
     public interface Clock { long millis(); }
@@ -30,8 +31,9 @@ public final class AgentSessions {
     private final Clock clock;
     private final DisplayReleaser releaser;
     public AgentSessions(Clock clock,DisplayReleaser releaser) {this.clock=clock;this.releaser=releaser;}
-    public synchronized State create() {
+    public synchronized State create() throws ControlException {
         expire();
+        if(sessions.size()>=MAX_SESSIONS) throw new ControlException(ControlException.Code.NOT_READY,"Agent session limit reached; close inactive sessions");
         byte[] nonce=new byte[24];
         String token;
         do {random.nextBytes(nonce);token=Base64.getUrlEncoder().withoutPadding().encodeToString(nonce);}
@@ -56,7 +58,7 @@ public final class AgentSessions {
         if(active>=MAX_DISPLAYS) throw new ControlException(ControlException.Code.NOT_READY,"All three agent displays are leased; release one before acquiring UI");
         int id=factory.create();
         if(id<=0 || sessions.values().stream().anyMatch(e->e.displayId==id)) {
-            if(id>0) releaser.release(id);
+            // A duplicated ID belongs to another lease: never release that display.
             throw new ControlException(ControlException.Code.NOT_READY,"Display backend returned an invalid or duplicate ID");
         }
         entry.displayId=id;entry.lastUiActivity=clock.millis();return entry.state();
