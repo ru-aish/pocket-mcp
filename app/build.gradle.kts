@@ -13,10 +13,10 @@ android {
         applicationId = "dev.pocket.mcp"
         minSdk = 31
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.1.2"
     }
-    buildFeatures { buildConfig = true }
+    buildFeatures { buildConfig = true; aidl = true }
     signingConfigs {
         create("distribution") {
             storeFile = file(System.getenv("APK_KEYSTORE") ?: "missing-keystore.jks")
@@ -33,4 +33,4 @@ android {
     packaging { resources { excludes += "META-INF/DEPENDENCIES" } }
     lint { textReport=true; textOutput=file("build/reports/lint-results-release.txt") }
 }
-dependencies { implementation(project(":android-platform")); implementation("org.nanohttpd:nanohttpd:2.3.1"); implementation("com.ngrok:ngrok-java:1.1.1"); ngrokNativeClasses("com.ngrok:ngrok-java-native:1.1.1"); implementation(files(androidNgrokJar)); testImplementation("junit:junit:4.13.2") }
+dependencies { implementation(project(":android-platform")); implementation("dev.rikka.shizuku:api:13.1.5"); implementation("dev.rikka.shizuku:provider:13.1.5"); implementation("org.nanohttpd:nanohttpd:2.3.1"); implementation("com.ngrok:ngrok-java:1.1.1"); ngrokNativeClasses("com.ngrok:ngrok-java-native:1.1.1"); implementation(files(androidNgrokJar)); testImplementation("junit:junit:4.13.2") }

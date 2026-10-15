@@ -27,8 +27,9 @@ final class PhoneTools {
     private final OperationStore operations;
     private final JSONArray definitions;
     private final AndroidSystemActions system;
+    private final AgentDisplayCoordinator agents;
     PhoneTools(Context context) throws Exception {
-        this.context=context.getApplicationContext();operations=new OperationStore(context);system=new AndroidSystemActions(context);
+        this.context=context.getApplicationContext();operations=new OperationStore(context);system=new AndroidSystemActions(context);agents=new AgentDisplayCoordinator(context);
         try(java.io.InputStream input=context.getAssets().open("tools.json")) {
             java.io.ByteArrayOutputStream bytes=new java.io.ByteArrayOutputStream();byte[] chunk=new byte[4096];int n;
             while((n=input.read(chunk))!=-1) bytes.write(chunk,0,n);
@@ -36,6 +37,7 @@ final class PhoneTools {
         }
     }
     JSONArray list() {return definitions;}
+    void close() {agents.close();}
     private JSONObject definition(String name) throws Exception {
         for(int i=0;i<definitions.length();i++) if(definitions.getJSONObject(i).getString("name").equals(name)) return definitions.getJSONObject(i);
         throw new ControlException(UNSUPPORTED,"Unknown tool");
@@ -67,11 +69,16 @@ final class PhoneTools {
     private AndroidScreenBackend screen() throws ControlException {
         PhoneObserver observer=PhoneObserver.connected;if(observer==null) throw new ControlException(PERMISSION_REQUIRED,"Enable Pocket MCP accessibility in Android Settings");return observer.backend();
     }
+    private AndroidScreenBackend targetScreen(JSONObject args) throws Exception {
+        if(args.has("session_id")) return agents.screen(args.getString("session_id"));
+        if(agents.sessionsExist()) throw new ControlException(INVALID_ARGUMENT,"session_id is required for UI tools while agent sessions are active; physical display is never an implicit fallback");
+        return screen();
+    }
     private static Integer integer(JSONObject a,String name) throws Exception {return a.has(name)?a.getInt(name):null;}
     private static String string(JSONObject a,String name) throws Exception {return a.has(name)?a.getString(name):null;}
     private JSONObject outcome(AndroidSystemActions.Outcome value) {return Json.tool(Json.obj("status",value.status(),"reference",value.reference(),"message",value.message()));}
     private JSONObject observation(JSONObject a) throws Exception {
-        ControlBackend.Observation o=screen().observe(a.optBoolean("include_image",false),a.optInt("max_image_dimension",1280),a.optInt("max_nodes",150));
+        ControlBackend.Observation o=targetScreen(a).observe(a.optBoolean("include_image",false),a.optInt("max_image_dimension",1280),a.optInt("max_nodes",150));
         JSONArray nodes=new JSONArray();
         for(ControlBackend.Node n:o.nodes()) nodes.put(Json.obj("index",n.index(),"resource_id",n.resourceId(),"text",n.text(),"description",n.description(),"role",n.role(),
             "bounds",Json.obj("left",n.left(),"top",n.top(),"right",n.right(),"bottom",n.bottom()),"enabled",n.enabled(),"focused",n.focused(),"editable",n.editable(),"clickable",n.clickable(),"long_clickable",n.longClickable(),"scrollable",n.scrollable()));
@@ -116,16 +123,33 @@ final class PhoneTools {
                 int state=context.getSystemService(android.telephony.TelephonyManager.class).getCallState();callState=switch(state) {case 0 -> "idle";case 1 -> "ringing";case 2 -> "offhook";default -> "unknown";};
             }catch(Exception denied) {}
         }
-        return Json.tool(Json.obj("version",BuildConfig.VERSION_NAME,"operation_prefix",operations.prefix(),"accessibility_connected",PhoneObserver.connected!=null,"notification_listener_connected",PhoneNotifications.connected!=null,"interactive",context.getSystemService(PowerManager.class).isInteractive(),"locked",context.getSystemService(KeyguardManager.class).isKeyguardLocked(),"permissions",permissions,"phone_accounts",accounts,"sms_subscriptions",subscriptions,"media_sessions",media,"call_state",callState,"call_state_note","offhook includes dialing; it is not connection proof","tunnel_native_loaded",ServerService.nativeLoaded,"connection",ServerService.status(),"preferred_order",Json.arr("direct_android_api","app_provided_action","semantic_accessibility","screen_gesture")));
+        return Json.tool(Json.obj("version",BuildConfig.VERSION_NAME,"operation_prefix",operations.prefix(),"accessibility_connected",PhoneObserver.connected!=null,"notification_listener_connected",PhoneNotifications.connected!=null,"interactive",context.getSystemService(PowerManager.class).isInteractive(),"locked",context.getSystemService(KeyguardManager.class).isKeyguardLocked(),"permissions",permissions,"phone_accounts",accounts,"sms_subscriptions",subscriptions,"media_sessions",media,"call_state",callState,"call_state_note","offhook includes dialing; it is not connection proof","tunnel_native_loaded",ServerService.nativeLoaded,"agent_virtual_display",Json.obj("backend",agents.backendStatus(),"maximum_ui_agents",3,"physical_display_reserved",true),"connection",ServerService.status(),"preferred_order",Json.arr("direct_android_api","app_provided_action","semantic_accessibility","screen_gesture")));
     }
     private JSONObject dispatch(String name,JSONObject a) throws Exception {
         switch(name) {
             case "phone_capabilities": return capabilities();
+            case "phone_agent_create": return Json.tool(agents.create());
+            case "phone_agent_acquire_ui": return Json.tool(agents.acquire(a.getString("session_id")));
+            case "phone_agent_release_ui": return Json.tool(agents.release(a.getString("session_id")));
+            case "phone_agent_close": return Json.tool(agents.close(a.getString("session_id")));
+            case "phone_agent_status": return Json.tool(agents.status(a.getString("session_id")));
+            case "phone_agent_list": return Json.tool(agents.list());
+            case "phone_displays": return Json.tool(agents.displays());
             case "phone_observe": return observation(a);
             case "phone_act": {
                 JSONObject s=a.optJSONObject("selector");ControlBackend.Selector selector=s==null?null:new ControlBackend.Selector(string(s,"resource_id"),string(s,"text"),string(s,"description"));
                 ControlBackend.Action action=new ControlBackend.Action(ControlBackend.Kind.valueOf(a.getString("kind").toUpperCase(java.util.Locale.ROOT)),a.getString("snapshot_id"),integer(a,"x"),integer(a,"y"),integer(a,"end_x"),integer(a,"end_y"),a.optInt("duration_ms",600),string(a,"text"),a.optBoolean("replace",true),string(a,"key"),string(a,"direction"),selector);
-                ControlBackend.Result result=screen().execute(action);return Json.tool(Json.obj("status",result.status(),"message",result.message()));
+                AndroidScreenBackend backend=targetScreen(a);
+                if(a.has("session_id") && action.kind()==ControlBackend.Kind.KEY && !"enter".equals(action.key())) {
+                    backend.validateAction(action);
+                    int code=switch(action.key()==null?"":action.key()) {
+                        case "home" -> 3;case "back" -> 4;case "recents" -> 187;
+                        default -> throw new ControlException(INVALID_ARGUMENT,"Unsupported key");
+                    };
+                    agents.key(a.getString("session_id"),code);
+                    return Json.tool(Json.obj("status","dispatched","message","Display-targeted key event sent; observe for completion"));
+                }
+                ControlBackend.Result result=backend.execute(action);return Json.tool(Json.obj("status",result.status(),"message",result.message()));
             }
             case "phone_apps": {
                 JSONArray apps=new JSONArray();List<ResolveInfo> found=context.getPackageManager().queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),0);
@@ -133,8 +157,16 @@ final class PhoneTools {
             }
             case "phone_open_app": {
                 String pkg=a.getString("package_name");Intent launch=context.getPackageManager().getLaunchIntentForPackage(pkg);
-                if(launch==null) throw new ControlException(UNSUPPORTED,"No launcher activity visible for this package");context.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-                return Json.tool(Json.obj("status","requested","package_name",pkg,"message","Launch requested; verify foreground package with phone_observe. OEM restrictions may block background launch."));
+                if(launch==null) throw new ControlException(UNSUPPORTED,"No launcher activity visible for this package");
+                if(a.has("session_id")) {
+                    ComponentName component=launch.getComponent();
+                    if(component==null) throw new ControlException(UNSUPPORTED,"No explicit launch component for virtual display");
+                    agents.launch(a.getString("session_id"),component.flattenToString());
+                    return Json.tool(Json.obj("status","requested","package_name",pkg,"display","virtual","message","Launch sent to leased display; verify the package/window there with phone_observe"));
+                }
+                if(agents.sessionsExist()) throw new ControlException(INVALID_ARGUMENT,"session_id required for app launch while agent sessions exist");
+                context.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                return Json.tool(Json.obj("status","requested","package_name",pkg,"message","Legacy physical-screen launch requested; verify foreground package with phone_observe."));
             }
             case "phone_contacts": {
                 JSONArray contacts=new JSONArray();for(AndroidSystemActions.Contact c:system.findContacts(a.getString("query"),a.optInt("limit",20))) contacts.put(Json.obj("contact_id",c.contactId(),"name",c.name(),"number",c.number()));return Json.tool(Json.obj("contacts",contacts));

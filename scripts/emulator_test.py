@@ -185,7 +185,7 @@ def run():
     status,r=rpc('initialize',{'protocolVersion':'2025-11-25','capabilities':{},'clientInfo':{'name':'fedora-emulator-test','version':'1'}})
     assert status==200 and r['result']['serverInfo']['name']=='pocket-mcp'
     assert rpc('x',body=json.dumps({'jsonrpc':'2.0','method':'notifications/initialized'}))[0]==202
-    assert len(rpc('tools/list')[1]['result']['tools'])==16
+    assert len(rpc('tools/list')[1]['result']['tools'])==23
     passed('initialize, notification, ping and all 16 tool schemas')
     assert call('phone_observe',max_nodes=-1)['isError']
     assert call('phone_capabilities',unknown=True)['isError']

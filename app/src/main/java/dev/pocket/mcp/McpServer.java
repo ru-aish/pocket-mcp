@@ -13,7 +13,7 @@ final class McpServer extends NanoHTTPD {
     private final byte[] authorization;
     private final OAuthHttp oauth;
     private final PhoneTools tools;
-    private final ThreadPoolExecutor worker=new ThreadPoolExecutor(1,1,0,TimeUnit.SECONDS,new ArrayBlockingQueue<>(16));
+    private final ThreadPoolExecutor worker=new ThreadPoolExecutor(3,3,0,TimeUnit.SECONDS,new ArrayBlockingQueue<>(24));
     private volatile boolean closing;
     McpServer(Context context,String bearer) throws Exception {
         super("127.0.0.1",8765);authorization=("Bearer "+bearer).getBytes(StandardCharsets.UTF_8);oauth=new OAuthHttp(bearer);tools=new PhoneTools(context);setAsyncRunner(new Connections());
@@ -59,7 +59,7 @@ final class McpServer extends NanoHTTPD {
         JSONObject params=request.optJSONObject("params");if(params==null) params=new JSONObject();JSONObject result;
         try {
             switch(method) {
-                case "initialize": {String requested=params.optString("protocolVersion","2025-11-25");result=Json.obj("protocolVersion",supported(requested)?requested:"2025-11-25","capabilities",Json.obj("tools",Json.obj("listChanged",false)),"serverInfo",Json.obj("name","pocket-mcp","version",BuildConfig.VERSION_NAME),"instructions","Prefer Android APIs. Get operation_prefix from phone_capabilities. Mutations require operation_id = operation_prefix + underscore + a unique nonce (8..48 letters/digits/dashes/underscores). Reuse the same ID and arguments after network loss. IDs from the current/previous UTC day are valid; expired IDs are never dispatched again. Inspect phone_operation for unknown results. Observe before every screen action; use full device coordinates. Do not report requested/dispatched as task completion.");break;}
+                case "initialize": {String requested=params.optString("protocolVersion","2025-11-25");result=Json.obj("protocolVersion",supported(requested)?requested:"2025-11-25","capabilities",Json.obj("tools",Json.obj("listChanged",false)),"serverInfo",Json.obj("name","pocket-mcp","version",BuildConfig.VERSION_NAME),"instructions","Prefer Android APIs. Get operation_prefix from phone_capabilities. Mutations require operation_id = operation_prefix + underscore + a unique nonce (8..48 letters/digits/dashes/underscores). Reuse the same ID and arguments after network loss. IDs from the current/previous UTC day are valid; expired IDs are never dispatched again. Inspect phone_operation for unknown results. For independent screen work, call phone_agent_create, then phone_agent_acquire_ui, and use session_id for phone_open_app/phone_observe/phone_act. Native actions need no screen. Display 0 is human-owned and never leased. Release UI when finished. Observe before every screen action; use full coordinates. Do not report requested/dispatched as task completion.");break;}
                 case "ping":result=new JSONObject();break;
                 case "tools/list":result=Json.obj("tools",tools.list());break;
                 case "resources/list":result=Json.obj("resources",Json.arr());break;
@@ -81,5 +81,5 @@ final class McpServer extends NanoHTTPD {
         return response(Response.Status.OK,Json.obj("jsonrpc","2.0","id",id,"result",result).toString());
     }
     private static boolean supported(String p) {return p.equals("2025-11-25") || p.equals("2025-06-18") || p.equals("2025-03-26");}
-    @Override public void stop() {closing=true;super.stop();worker.shutdownNow();}
+    @Override public void stop() {closing=true;super.stop();worker.shutdownNow();tools.close();}
 }
