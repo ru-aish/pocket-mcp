@@ -12,6 +12,12 @@ A standalone Android MCP app: direct Android APIs first, Android accessibility f
 4. Press **Start public connection**. The app shows its public `/mcp` URL and the result of its own authenticated HTTPS check. On phones with aggressive background limits, enable the appropriate battery/autostart setting for Pocket MCP.
 5. Press **Copy MCP connection details**. Configure your MCP client with that URL and `Authorization: Bearer <your-token>`. Credentials remain encrypted in Android Keystore-backed storage; no credential is built into the APK.
 
+### ChatGPT / OpenAI OAuth connection
+
+Start the phone's public HTTPS connection, then create a custom MCP app in ChatGPT with the displayed public `/mcp` URL and **OAuth** authentication. The phone supports OAuth authorization-server and protected-resource discovery, dynamic client registration, authorization-code + PKCE (S256), and refresh-token rotation. During authorization, enter the **MCP bearer token** from **Copy MCP connection details** as the access password. This is distinct from the ngrok authtoken. OAuth tokens are scoped to this public MCP URL and held only in memory: stopping/restarting the foreground service revokes them. If the ngrok hostname changes, reconnect the client. Existing MCP clients can still use the direct `Authorization: Bearer <token>` header.
+
+OAuth metadata and registration routes are accessible only after the HTTPS tunnel is established. They share the existing localhost-only listener and never use an embedded client secret. The registration endpoint accepts HTTPS callback URIs (or localhost for local development). The browser displays a warning that this grants high-impact access to phone tools. Do not give the MCP token to untrusted clients, and keep the foreground service stopped when remote access is not needed.
+
 The connection uses a visible foreground service with a Stop action. The local server binds to `127.0.0.1:8765`; the phone's ngrok SDK forwards public HTTPS to it. **Start local connection** is available for emulator/USB-forward testing without ngrok. It never publishes the phone on the LAN.
 
 ## Tools

@@ -11,12 +11,14 @@ import org.json.JSONObject;
 final class McpServer extends NanoHTTPD {
     private static final int MAX_BODY=1_048_576;
     private final byte[] authorization;
+    private final OAuthHttp oauth;
     private final PhoneTools tools;
     private final ThreadPoolExecutor worker=new ThreadPoolExecutor(1,1,0,TimeUnit.SECONDS,new ArrayBlockingQueue<>(16));
     private volatile boolean closing;
     McpServer(Context context,String bearer) throws Exception {
-        super("127.0.0.1",8765);authorization=("Bearer "+bearer).getBytes(StandardCharsets.UTF_8);tools=new PhoneTools(context);setAsyncRunner(new Connections());
+        super("127.0.0.1",8765);authorization=("Bearer "+bearer).getBytes(StandardCharsets.UTF_8);oauth=new OAuthHttp(bearer);tools=new PhoneTools(context);setAsyncRunner(new Connections());
     }
+    void setPublicOrigin(String publicUrl) {oauth.setPublicOrigin(publicUrl);}
     private static final class Connections implements AsyncRunner {
         private final java.util.Set<ClientHandler> open=ConcurrentHashMap.newKeySet();
         private final ThreadPoolExecutor threads=new ThreadPoolExecutor(0,16,30,TimeUnit.SECONDS,new SynchronousQueue<>(),r->{Thread t=new Thread(r,"pocket-http");t.setDaemon(true);return t;});
@@ -27,8 +29,12 @@ final class McpServer extends NanoHTTPD {
     private Response response(Response.IStatus code,String body) {Response r=newFixedLengthResponse(code,"application/json; charset=utf-8",body);r.addHeader("Cache-Control","no-store");r.addHeader("X-Content-Type-Options","nosniff");return r;}
     private Response error(Response.IStatus status,int code,String message,Object id) {Response r=response(status,Json.obj("jsonrpc","2.0","id",id,"error",Json.obj("code",code,"message",message)).toString());if(status.getRequestStatus()>=400) r.addHeader("Connection","close");return r;}
     @Override public Response serve(IHTTPSession session) {
+        Response authPage=oauth.handle(session);
+        if(authPage!=null) return authPage;
         String auth=session.getHeaders().get("authorization");
-        if(auth==null || !MessageDigest.isEqual(authorization,auth.getBytes(StandardCharsets.UTF_8))) {Response r=error(Response.Status.UNAUTHORIZED,-32001,"Bearer authorization required",null);r.addHeader("WWW-Authenticate","Bearer");return r;}
+        boolean legacy=auth!=null && MessageDigest.isEqual(authorization,auth.getBytes(StandardCharsets.UTF_8));
+        boolean oauthToken=auth!=null && auth.startsWith("Bearer ") && oauth.valid(auth.substring(7));
+        if(!legacy && !oauthToken) {Response r=error(Response.Status.UNAUTHORIZED,-32001,"Bearer authorization required",null);r.addHeader("WWW-Authenticate",oauth.challenge());return r;}
         // Native agent clients send no Origin. Browser access requires an explicit future allowlist.
         if(session.getHeaders().containsKey("origin")) return error(Response.Status.FORBIDDEN,-32002,"Browser origins are not enabled",null);
         if(!"/mcp".equals(session.getUri())) return error(Response.Status.NOT_FOUND,-32601,"Unknown endpoint",null);
