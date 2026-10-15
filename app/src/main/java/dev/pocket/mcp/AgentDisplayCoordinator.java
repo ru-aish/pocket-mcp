@@ -41,7 +41,7 @@ final class AgentDisplayCoordinator implements AutoCloseable {
     }
     JSONObject create() {return state(sessions.create(),true);}
     private synchronized ShizukuDisplayClient getClient() {
-        if(client==null) client=new ShizukuDisplayClient(context,sessions::clear);
+        if(client==null) client=new ShizukuDisplayClient(context,sessions::invalidateDisplays);
         return client;
     }
     private synchronized void shutDownIfIdle() {

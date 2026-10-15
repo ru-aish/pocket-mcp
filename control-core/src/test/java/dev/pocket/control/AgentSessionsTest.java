@@ -44,6 +44,16 @@ public class AgentSessionsTest {
         r.now+=AgentSessions.SESSION_IDLE_MILLIS+1;
         assertThrows(ControlException.class,()->r.sessions.status(token));
     }
+    @Test public void serviceDeathKeepsNativeSessionsButInvalidatesUi() throws Exception {
+        Rig r=new Rig();
+        String first=r.sessions.create().token(),nativeOnly=r.sessions.create().token();
+        r.sessions.acquire(first,r::create);
+        r.sessions.invalidateDisplays();
+        assertEquals(-1,r.sessions.status(first).displayId());
+        assertEquals(-1,r.sessions.status(nativeOnly).displayId());
+        assertTrue(r.active.isEmpty());
+        assertTrue(r.sessions.acquire(first,r::create).displayId()>0);
+    }
     @Test public void failedCreateLeavesNoLease() throws Exception {
         Rig r=new Rig();String token=r.sessions.create().token();
         assertThrows(ControlException.class,()->r.sessions.acquire(token,()->{throw new ControlException(ControlException.Code.NOT_READY,"shizuku disconnected");}));

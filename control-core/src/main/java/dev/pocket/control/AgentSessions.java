@@ -95,8 +95,12 @@ public final class AgentSessions {
             else if(e.displayId>0 && now-e.lastUiActivity>=UI_IDLE_MILLIS) releaseEntry(e);
         }
     }
-    public synchronized void clear() {
+    /** A privileged UI service death invalidates only virtual leases, not native-only agents. */
+    public synchronized void invalidateDisplays() {
         for(Entry e:sessions.values()) releaseEntry(e);
+    }
+    public synchronized void clear() {
+        invalidateDisplays();
         sessions.clear();
     }
 }

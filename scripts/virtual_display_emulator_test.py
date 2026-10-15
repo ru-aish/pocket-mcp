@@ -60,7 +60,8 @@ def check(name,ok,details=None):
 def benchmark(stage):
     report={"stage":stage,"time":time.time()}
     for process in ("dev.pocket.mcp","dev.pocket.mcp:display","shizuku_server","dev.pocket.fixture"):
-        ids=adb("shell","pidof",process).strip().split()
+        proc=subprocess.run(["adb","-s",args.serial,"shell","pidof",process],capture_output=True,text=True,timeout=20)
+        ids=proc.stdout.strip().split()
         mem=adb("shell","dumpsys","meminfo",ids[0]) if ids else ""
         import re
         m=re.search(r"TOTAL PSS:\s*([\d,]+)",mem) or re.search(r"TOTAL\s+([\d,]+)",mem)
@@ -197,11 +198,12 @@ def run():
     image_hashes=[]
     screenshot_latencies=[]
     for sid in sessions[:3]:
+        time.sleep(1.1)  # Accessibility screenshots are Android-rate-limited, even across displays.
         t0=time.monotonic()
         response=rpc("phone_observe",{"session_id":sid,"include_image":True,"max_image_dimension":720,"max_nodes":0})
         screenshot_latencies.append((time.monotonic()-t0)*1000)
         items=[v for v in response["content"] if v["type"]=="image"]
-        if len(items)!=1:raise AssertionError("Expected exactly one JPEG frame from display")
+        if len(items)!=1:raise AssertionError("Expected exactly one JPEG frame from display; response="+str(response.get("structuredContent",response))[:420])
         image_hashes.append(hashlib.sha256(base64.b64decode(items[0]["data"])).hexdigest())
     check("on-demand screenshots differ across distinct agent windows",len(set(image_hashes))==3,image_hashes)
     result["screenshot_latency_ms"]=screenshot_latencies
@@ -247,6 +249,12 @@ def run():
     benchmark("two-displays-after-release")
     call("phone_agent_acquire_ui",session_id=sessions[3],operation_id=newop("acquire4"))
     check("fourth agent acquires freed capacity",len(call("phone_displays")["displays"])==4)
+    first=call("phone_observe",session_id=sessions[0],max_nodes=50)
+    moved=call("phone_act",session_id=sessions[0],kind="key",key="back",
+        snapshot_id=first["snapshot_id"],operation_id=newop("virtualback"))
+    check("display-targeted Back key dispatches",moved["status"]=="dispatched",moved)
+    time.sleep(.4)
+    check("virtual Back never changes human physical foreground",physical_top()==expected_physical,physical_top())
     result["passed"]=True
 
 try:
