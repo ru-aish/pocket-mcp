@@ -4,9 +4,9 @@ Date: 2026-10-15. Target: three concurrent UI agents on Android without root, wi
 
 ## Signed build provenance
 
-- GitHub Actions signed release run: https://github.com/ru-aish/pocket-mcp/actions/runs/38764931779
-- Commit: `b208bd3` (application code). Fedora-only test changes after that commit do not change the signed APK.
-- Universal APK SHA-256: `cdeb5598e0bfd63ce6a7f8d016e56ef58bd7e5807ed7629734fdb8f6915eb302`
+- GitHub Actions signed release run: https://github.com/ru-aish/pocket-mcp/actions/runs/38767724560
+- Commit: `9bb4a45` (application code). Fedora-only test changes after that commit do not change the signed APK.
+- Universal APK SHA-256: `a3ed6e5c8af8ecef85ce2fa6ff6f2515e29ab7912a792c981f93e65b5d399ea1`
 - Test device: **Fedora emulator-5580**, Android API 35, x86_64. Connected physical USB device was not targeted.
 - Shizuku emulator provider: **v13.6.0**, running as shell UID following in-emulator authorization. No rooting of the emulator or physical phone was needed.
 - CI passed Java tests (including `AgentSessionsTest`), release compilation, R8, lint, APK signatures, and structure checks.
@@ -15,8 +15,8 @@ Date: 2026-10-15. Target: three concurrent UI agents on Android without root, wi
 
 | Suite | Result | Evidence stored locally on Fedora |
 | --- | --- | --- |
-| Pre-existing MCP/Android regressions | **30/30 passed** | `artifacts/fedora-regression-38764931779/results.json` |
-| Multi-agent virtual display integration | **32/32 passed** | `artifacts/final-multi-agent-38764931779.json` |
+| Pre-existing MCP/Android regressions | **30/30 passed** | `artifacts/fedora-regression-38767724560/results.json` |
+| Multi-agent virtual display integration | **32/32 passed** | `artifacts/final-multi-agent-38767724560.json` |
 | Chromium WebView Shell three-window probe | **passed** | `artifacts/browser-virtual-display-probe.json` |
 | Shizuku shell-server death/recovery | **7/7 passed** | `artifacts/shizuku-death-recovery.json` |
 
@@ -39,12 +39,12 @@ The end-to-end test verified:
 
 | Process | No UI leases PSS | Three active fixture windows PSS |
 | --- | ---: | ---: |
-| Pocket MCP app | 21,784 KB | 22,108 KB |
-| Shizuku shell server | 52,615 KB | 50,869 KB |
-| Lazily created display UserService | **not running** | 51,853 KB |
-| Fixture app (shared process) | 38,551 KB | 40,954 KB |
+| Pocket MCP app | 21,573 KB | 22,121 KB |
+| Shizuku shell server | 52,462 KB | 50,761 KB |
+| Lazily created display UserService | **not running** | 51,490 KB |
+| Fixture app (shared process) | 37,726 KB | 40,515 KB |
 
-Cold first UI lease with Shizuku binding: **470 ms**. Next two warm leases: **88 ms** and **86 ms**. Three on-demand virtual screenshot calls: **50 ms**, **46 ms**, **74 ms**, after spacing them to honor Android's screenshot throttling. The idle display-service process exited and all virtual display IDs disappeared after cleanup.
+Cold first UI lease with Shizuku binding: **471 ms**. Next two warm leases: **49 ms** and **55 ms**. Three on-demand virtual screenshot calls: **50 ms**, **46 ms**, **55 ms**, after spacing them to honor Android's screenshot throttling. The idle display-service process exited and all virtual display IDs disappeared after cleanup.
 
 The separate Shizuku server remains installed/running until Shizuku is stopped, with its own baseline cost; Pocket MCP does not bundle it or start it automatically. The current Pocket MCP foreground service also holds its existing partial wakelock while connected. No whole-device energy or continuous CPU load measurement is claimed.
 
