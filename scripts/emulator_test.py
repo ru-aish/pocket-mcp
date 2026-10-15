@@ -186,7 +186,7 @@ def run():
     assert status==200 and r['result']['serverInfo']['name']=='pocket-mcp'
     assert rpc('x',body=json.dumps({'jsonrpc':'2.0','method':'notifications/initialized'}))[0]==202
     assert len(rpc('tools/list')[1]['result']['tools'])==23
-    passed('initialize, notification, ping and all 16 tool schemas')
+    passed('initialize, notification, ping and all 23 tool schemas')
     assert call('phone_observe',max_nodes=-1)['isError']
     assert call('phone_capabilities',unknown=True)['isError']
     assert call('not_a_tool')['isError']

@@ -15,19 +15,22 @@ import static dev.pocket.control.ControlException.Code.*;
 /** Exclusive UI leases for up to three external agents; the physical screen is never leased. */
 final class AgentDisplayCoordinator implements AutoCloseable {
     private final AgentSessions sessions;
-    private ShizukuDisplayClient client;
+    private final Context context;
+    private volatile ShizukuDisplayClient client;
     private final ScheduledExecutorService watchdog=Executors.newSingleThreadScheduledExecutor(r->{
         Thread t=new Thread(r,"pocket-display-expiry");t.setDaemon(true);return t;
     });
     AgentDisplayCoordinator(Context context) {
+        this.context=context.getApplicationContext();
         sessions=new AgentSessions(SystemClock::elapsedRealtime,id->{
             PhoneObserver observer=PhoneObserver.connected;
             if(observer!=null) observer.release(id);
             if(client!=null) client.removeDisplay(id);
         });
-        client=new ShizukuDisplayClient(context,sessions::clear);
-        watchdog.scheduleAtFixedRate(sessions::expire,60,60,TimeUnit.SECONDS);
-        client.tryBind();
+        watchdog.scheduleAtFixedRate(()->{
+            sessions.expire();
+            shutDownIfIdle();
+        },60,60,TimeUnit.SECONDS);
     }
     private static JSONObject state(AgentSessions.State state,boolean includeToken) {
         JSONObject result=Json.obj("agent",state.token().substring(0,8),"has_ui",state.displayId()>0,
@@ -37,13 +40,29 @@ final class AgentDisplayCoordinator implements AutoCloseable {
         return result;
     }
     JSONObject create() {return state(sessions.create(),true);}
-    JSONObject acquire(String token) throws ControlException {
-        AgentSessions.State state=sessions.acquire(token,client::createDisplay);
+    private synchronized ShizukuDisplayClient getClient() {
+        if(client==null) client=new ShizukuDisplayClient(context,sessions::clear);
+        return client;
+    }
+    private synchronized void shutDownIfIdle() {
+        if(client==null) return;
+        for(AgentSessions.State state:sessions.list()) if(state.displayId()>0) return;
+        ShizukuDisplayClient closing=client;
+        client=null;
+        closing.close();
+    }
+    synchronized JSONObject acquire(String token) throws ControlException {
+        AgentSessions.State state=sessions.acquire(token,()->getClient().createDisplay());
         return state(state,true);
     }
-    JSONObject release(String token) throws ControlException {return state(sessions.release(token),true);}
-    JSONObject close(String token) throws ControlException {
+    synchronized JSONObject release(String token) throws ControlException {
+        AgentSessions.State result=sessions.release(token);
+        shutDownIfIdle();
+        return state(result,true);
+    }
+    synchronized JSONObject close(String token) throws ControlException {
         sessions.close(token);
+        shutDownIfIdle();
         return Json.obj("status","closed");
     }
     JSONObject status(String token) throws ControlException {return state(sessions.status(token),true);}
@@ -51,7 +70,7 @@ final class AgentDisplayCoordinator implements AutoCloseable {
         JSONArray all=new JSONArray();
         for(AgentSessions.State entry:sessions.list()) all.put(state(entry,false));
         return Json.obj("agents",all,"active_sessions",all.length(),
-            "max_ui_agents",AgentSessions.MAX_DISPLAYS,"backend",client.status());
+            "max_ui_agents",AgentSessions.MAX_DISPLAYS,"backend",backendStatus());
     }
     JSONObject displays() {
         JSONArray list=new JSONArray();
@@ -60,12 +79,12 @@ final class AgentDisplayCoordinator implements AutoCloseable {
             if(entry.displayId()>0) list.put(Json.obj("display_id",entry.displayId(),
                 "role","virtual","agent",entry.token().substring(0,8),"status","leased"));
         }
-        return Json.obj("displays",list,"backend",client.status(),"on_demand",true);
+        return Json.obj("displays",list,"backend",backendStatus(),"on_demand",true);
     }
     boolean sessionsExist() {return !sessions.list().isEmpty();}
     int display(String token) throws ControlException {
         int id=sessions.checkedDisplay(token);
-        if(!"ready".equals(client.status()))
+        if(!"ready".equals(backendStatus()))
             throw new ControlException(NOT_READY,"Shizuku backend disconnected; virtual UI not accessible");
         return id;
     }
@@ -75,13 +94,17 @@ final class AgentDisplayCoordinator implements AutoCloseable {
         if(observer==null) throw new ControlException(PERMISSION_REQUIRED,"Enable accessibility to observe the leased display");
         return observer.backend(id);
     }
-    void launch(String token,String component) throws ControlException {client.launch(display(token),component);}
-    void key(String token,int code) throws ControlException {client.key(display(token),code);}
-    String backendStatus() {return client.status();}
-    void prepare() {client.tryBind();}
-    @Override public void close() {
+    void launch(String token,String component) throws ControlException {int id=display(token);getClient().launch(id,component);}
+    void key(String token,int code) throws ControlException {int id=display(token);getClient().key(id,code);}
+    String backendStatus() {
+        ShizukuDisplayClient present=client;
+        return present==null?ShizukuDisplayClient.prerequisites():present.status();
+    }
+    @Override public synchronized void close() {
         watchdog.shutdownNow();
         sessions.clear();
-        client.close();
+        ShizukuDisplayClient present=client;
+        client=null;
+        if(present!=null) present.close();
     }
 }

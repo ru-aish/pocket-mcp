@@ -6,12 +6,14 @@ import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.os.IBinder;
 import android.os.RemoteException;
+import android.os.SystemClock;
 import dev.pocket.control.ControlException;
 import rikka.shizuku.Shizuku;
 
 /** Single Shizuku session shared by all agent-owned virtual displays. */
 final class ShizukuDisplayClient implements AutoCloseable {
     private final Shizuku.UserServiceArgs args;
+    private final Object readyLock=new Object();
     private final Runnable disconnected;
     private volatile IDisplayShell remote;
     private volatile boolean binding;
@@ -22,6 +24,7 @@ final class ShizukuDisplayClient implements AutoCloseable {
             try {binder.linkToDeath(ShizukuDisplayClient.this::loseService,0);}
             catch(RemoteException e) {loseService();return;}
             remote=shell;binding=false;
+            synchronized(readyLock) {readyLock.notifyAll();}
         }
         @Override public void onServiceDisconnected(ComponentName name) {loseService();}
     };
@@ -37,16 +40,22 @@ final class ShizukuDisplayClient implements AutoCloseable {
     }
     private void loseService() {
         remote=null;binding=false;
-        disconnected.run();
+        synchronized(readyLock) {readyLock.notifyAll();}
+        if(!closed) disconnected.run();
     }
     private boolean available() {
         try {return Shizuku.pingBinder();}catch(Throwable e){return false;}
     }
+    static String prerequisites() {
+        try {
+            if(!Shizuku.pingBinder()) return "shizuku_unavailable";
+            return Shizuku.checkSelfPermission()==PackageManager.PERMISSION_GRANTED?"idle":"permission_required";
+        } catch(Throwable e) {return "shizuku_unavailable";}
+    }
     String status() {
         if(closed) return "stopped";
-        if(!available()) return "shizuku_unavailable";
-        try {if(Shizuku.checkSelfPermission()!=PackageManager.PERMISSION_GRANTED) return "permission_required";}
-        catch(Throwable e) {return "shizuku_unavailable";}
+        String pre=prerequisites();
+        if(!"idle".equals(pre)) return pre;
         if(remote!=null && remote.asBinder().isBinderAlive()) return "ready";
         return binding?"binding":"disconnected";
     }
@@ -59,12 +68,22 @@ final class ShizukuDisplayClient implements AutoCloseable {
         } catch(Exception e) {binding=false;}
     }
     private IDisplayShell require() throws ControlException {
-        String status=status();
-        if(!"ready".equals(status)) {
+        if(!"ready".equals(status())) {
             tryBind();
-            throw new ControlException(ControlException.Code.NOT_READY,
-                "Virtual display backend "+status+"; start Shizuku and authorize Pocket MCP in its UI, then retry");
+            long end=SystemClock.elapsedRealtime()+4000;
+            synchronized(readyLock) {
+                while(!"ready".equals(status()) && !closed && SystemClock.elapsedRealtime()<end) {
+                    if(!"binding".equals(status())) break;
+                    try {readyLock.wait(Math.max(1,end-SystemClock.elapsedRealtime()));}
+                    catch(InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new ControlException(ControlException.Code.RESULT_UNKNOWN,"Interrupted binding Shizuku service");
+                    }
+                }
+            }
         }
+        if(!"ready".equals(status())) throw new ControlException(ControlException.Code.NOT_READY,
+            "Virtual display backend "+status()+"; start Shizuku and authorize Pocket MCP in its UI");
         return remote;
     }
     int createDisplay() throws ControlException {
@@ -88,6 +107,7 @@ final class ShizukuDisplayClient implements AutoCloseable {
     }
     @Override public synchronized void close() {
         closed=true;remote=null;
+        synchronized(readyLock) {readyLock.notifyAll();}
         Shizuku.removeBinderReceivedListener(received);
         Shizuku.removeBinderDeadListener(died);
         try {if(available()) Shizuku.unbindUserService(args,connection,true);}catch(Exception ignored){}
